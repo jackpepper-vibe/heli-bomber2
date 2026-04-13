@@ -23,6 +23,15 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  const url = new URL(e.request.url);
+  // Always fetch HTML fresh from network so updates are instant
+  if (url.pathname === '/' || url.pathname.endsWith('.html')) {
+    e.respondWith(
+      fetch(e.request).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+  // Cache-first for everything else (icons, manifest, etc.)
   e.respondWith(
     caches.match(e.request).then(r => r || fetch(e.request))
   );
