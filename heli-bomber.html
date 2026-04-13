@@ -352,7 +352,7 @@
       pointer-events: none;
       z-index: 50;
     }
-    .touch-active #touch-hud { display: block; }
+    .touch-active.in-game #touch-hud { display: block; }
     #dpad {
       position: absolute;
       left: 16px; bottom: 14px;
@@ -415,10 +415,11 @@
   <div id="fire-btn">FIRE</div>
 </div>
 
+<!-- SPLASH: scoreboard + callsign -->
 <div id="splash">
   <div class="s-title">
     <h1>HELI BOMBER</h1>
-    <div class="sub">â–¸ URBAN AIR ASSAULT SIMULATOR â—‚</div>
+    <div class="sub">&#9658; URBAN AIR ASSAULT SIMULATOR &#9668;</div>
   </div>
 
   <div class="scores-panel">
@@ -427,14 +428,21 @@
   </div>
 
   <div class="name-area">
-    <div class="name-lbl">â–¸ ENTER CALLSIGN â—‚</div>
+    <div class="name-lbl">&#9658; ENTER CALLSIGN &#9668;</div>
     <input id="player-name" type="text" maxlength="12"
            placeholder="ACE" autocomplete="off" spellcheck="false">
-    <button id="start-btn">[ BEGIN MISSION ]</button>
+    <button id="start-btn">[ SELECT AIRCRAFT ]</button>
+  </div>
+</div>
+
+<!-- HELI SELECT SCREEN -->
+<div id="heli-select" style="display:none; flex-direction:column; align-items:center; gap:22px; padding:20px; width:100%;">
+  <div class="s-title">
+    <h1 style="font-size:clamp(1.6rem,5vw,3.5rem)">HELI BOMBER</h1>
+    <div class="sub">&#9658; SELECT AIRCRAFT &#9668;</div>
   </div>
 
   <div class="heli-select-area">
-    <div class="heli-select-label">â–¸ SELECT AIRCRAFT â—‚</div>
     <div class="heli-cards">
       <div class="heli-card selected" data-model="0" onclick="selectHeli(0)">
         <canvas id="prev-0" width="148" height="72"></canvas>
@@ -454,9 +462,11 @@
     </div>
   </div>
 
+  <button id="launch-btn" style="background:#000;border:1px solid #00ff41;color:#00ff41;font-family:'Courier New',monospace;font-size:0.88rem;letter-spacing:0.35em;padding:10px 36px;cursor:pointer;text-transform:uppercase;transition:all 0.12s;">[ BEGIN MISSION ]</button>
+
   <div class="ctrl-hint">
-    [W A S D  /  ARROW KEYS] FLY IN ALL DIRECTIONS &nbsp;&nbsp; [SPACE] DROP BOMB<br>
-    5 LEVELS &nbsp;&bull;&nbsp; 20 SECONDS EACH &nbsp;&bull;&nbsp; SCORE AS MANY POINTS AS POSSIBLE
+    [W A S D  /  ARROW KEYS] FLY &nbsp;&nbsp; [SPACE] DROP BOMB / FIRE<br>
+    8 LEVELS &nbsp;&bull;&nbsp; REACH THE FINISH LINE &nbsp;&bull;&nbsp; SCORE AS MANY POINTS AS POSSIBLE
   </div>
 </div>
 
@@ -464,8 +474,8 @@
 <div id="game-screen">
   <div id="hud">
     <span>PILOT: <strong id="hud-name">ACE</strong></span>
-    <span id="hud-level">LVL <strong id="hud-level-num">1</strong> / 5</span>
-    <span id="hud-timer">0:20</span>
+    <span id="hud-level">LVL <strong id="hud-level-num">1</strong> / 8</span>
+    <span id="hud-timer">----m</span>
     <span>SCORE: <strong id="hud-score">0</strong></span>
   </div>
   <div id="wrap">
@@ -755,10 +765,14 @@ const $splash   = document.getElementById('splash');
 const $game     = document.getElementById('game-screen');
 const $gameover = document.getElementById('gameover');
 
+const $heliSelect = document.getElementById('heli-select');
+
 function showScreen(name) {
-  $splash.style.display   = name === 'splash'   ? 'flex'    : 'none';
-  $game.style.display     = name === 'game'     ? 'flex'    : 'none';
+  $splash.style.display      = name === 'splash'      ? 'flex' : 'none';
+  $heliSelect.style.display  = name === 'heli-select' ? 'flex' : 'none';
+  $game.style.display        = name === 'game'        ? 'flex' : 'none';
   $gameover.classList.toggle('show', name === 'gameover');
+  document.documentElement.classList.toggle('in-game', name === 'game');
   if (name !== 'game') {
     document.getElementById('level-transition').classList.remove('show');
   }
@@ -796,6 +810,22 @@ let stormMissiles = [], stormMissileTimer = 100, stormMissileFlash = 0;
 
 // ── Level 8: Minefield ───────────────────────────────────────────────────────
 let mines = [], mineFlashTimer = 0;
+
+// ── Visual FX ────────────────────────────────────────────────────────────────
+let shakeX = 0, shakeY = 0, shakeMag = 0;
+let explosions = [];
+
+// ── Parallax / Background ─────────────────────────────────────────────────────
+let stars = [], clouds = [], bgCity = [];
+let bgScrollX = 0;
+
+// ── Ground details ────────────────────────────────────────────────────────────
+let groundDetails = [];
+
+// ── Finish line (replaces countdown timer) ────────────────────────────────────
+const LEVEL_DIST  = 5500;   // scroll-pixels to travel per level
+let finishLineX   = W + LEVEL_DIST;
+let levelDone     = false;
 
 const BALLOON_COLORS = ['#00ff41','#00ff41','#00ff41','#00ff41','#00ff41','#00ff41'];
 const BALLOON_COUNT  = 6;
@@ -931,6 +961,22 @@ function updateCave() {
 
   const spd = SCROLL + (currentLevel - 1) * 0.5;
   caveScrollX += spd;
+
+  // Cave finish line: survive LEVEL_DIST of scrolling
+  if (!levelDone && caveScrollX >= LEVEL_DIST) {
+    levelDone = true;
+    if (!caveCrashed) {
+      score += 10000;
+      document.getElementById('hud-score').textContent = score.toLocaleString();
+      caveBonusActive = true;
+      sndCaveBonus();
+      setTimeout(() => handleLevelComplete(), 3000);
+    }
+    return;
+  }
+  // Update HUD distance for cave
+  const distLeft = Math.max(0, Math.floor(LEVEL_DIST - caveScrollX));
+  document.getElementById('hud-timer').textContent = distLeft + 'm';
 
   // Move formations with scroll
   for (const f of caveFormations) f.x -= spd;
@@ -1726,7 +1772,17 @@ function mkBuilding(startX) {
     const nWin = Math.max(1, (w - 6) / 8 | 0);
     layers.push({ h, w, wins: Array.from({length: nWin}, () => Math.random() > 0.3) });
   }
-  return { x: startX, baseW: wBase, layers };
+  // Rooftop features
+  const isTall = nL >= 5;
+  return {
+    x: startX,
+    baseW: wBase,
+    layers,
+    shade: Math.random() > 0.5 ? '#001800' : '#001200',
+    hasAntenna:   isTall && Math.random() > 0.45,
+    hasWaterTower: isTall && Math.random() > 0.6,
+    hasNeon:       Math.random() > 0.75,
+  };
 }
 
 function seedBuildings() {
@@ -2057,71 +2113,407 @@ document.addEventListener('keyup', e => { keys[e.code] = false; });
 // -- drawHeliModel: draw heli onto any ctx at (cx,cy) with scale --------
 function drawHeliModel(ctx2d, cx, cy, scale, rotA) {
   const s = scale;
-  ctx2d.strokeStyle = '#00ff41'; ctx2d.fillStyle = '#00ff41'; ctx2d.lineWidth = 1.5*s;
-  // rotor mast
+
+  // Rotor disc glow
+  ctx2d.globalAlpha = 0.07;
+  ctx2d.beginPath(); ctx2d.arc(cx, cy-22*s, 60*s, 0, Math.PI*2);
+  ctx2d.fillStyle = '#00ff41'; ctx2d.fill();
+  ctx2d.globalAlpha = 1;
+
+  // Rotor mast
+  ctx2d.strokeStyle = '#00ff41'; ctx2d.lineWidth = 2*s;
   ctx2d.beginPath(); ctx2d.moveTo(cx, cy-12*s); ctx2d.lineTo(cx, cy-22*s); ctx2d.stroke();
-  // main rotor
-  ctx2d.save(); ctx2d.translate(cx, cy-22*s); ctx2d.rotate(rotA);
-  ctx2d.lineWidth=2.5*s; ctx2d.beginPath(); ctx2d.moveTo(-58*s,0); ctx2d.lineTo(58*s,0); ctx2d.stroke();
-  ctx2d.restore();
-  // tail boom
-  ctx2d.fillStyle='#00ff41'; ctx2d.fillRect(cx-75*s, cy-3*s, 37*s, 7*s);
-  // tail fin
-  ctx2d.lineWidth=2*s; ctx2d.beginPath();
-  ctx2d.moveTo(cx-74*s, cy-18*s); ctx2d.lineTo(cx-74*s, cy+8*s); ctx2d.stroke();
-  // tail rotor
-  ctx2d.save(); ctx2d.translate(cx-74*s, cy-5*s); ctx2d.rotate(rotA*1.6);
-  ctx2d.lineWidth=1.5*s; ctx2d.beginPath(); ctx2d.moveTo(0,-12*s); ctx2d.lineTo(0,12*s); ctx2d.stroke();
-  ctx2d.restore();
-  // fuselage
-  ctx2d.fillStyle='#00ff41'; ctx2d.strokeStyle='#00ff41'; ctx2d.lineWidth=1*s;
-  ctx2d.fillRect(cx-38*s, cy-12*s, 76*s, 24*s);
-  // cockpit
-  ctx2d.fillStyle='#001f00'; ctx2d.strokeStyle='#00ff41'; ctx2d.lineWidth=1.5*s;
-  ctx2d.beginPath(); ctx2d.moveTo(cx+38*s,cy-12*s); ctx2d.lineTo(cx+64*s,cy+1*s); ctx2d.lineTo(cx+38*s,cy+12*s);
+
+  // Rotor hub
+  ctx2d.fillStyle = '#aaffbb';
+  ctx2d.beginPath(); ctx2d.arc(cx, cy-22*s, 3*s, 0, Math.PI*2); ctx2d.fill();
+
+  // Main rotor blades — motion blur (ghost blades at trailing angles)
+  for (let ghost = 3; ghost >= 0; ghost--) {
+    const ga = rotA - ghost * 0.22;
+    ctx2d.save();
+    ctx2d.translate(cx, cy-22*s); ctx2d.rotate(ga);
+    ctx2d.globalAlpha = ghost === 0 ? 0.9 : 0.1 * (4 - ghost);
+    ctx2d.strokeStyle = '#00ff41';
+    ctx2d.lineWidth = ghost === 0 ? 3.5*s : 2.5*s;
+    ctx2d.lineCap = 'round';
+    // Blade 1
+    ctx2d.beginPath(); ctx2d.moveTo(-58*s, 0); ctx2d.lineTo(58*s, 0); ctx2d.stroke();
+    // Blade 2 (perpendicular)
+    ctx2d.rotate(Math.PI / 2);
+    ctx2d.beginPath(); ctx2d.moveTo(-58*s, 0); ctx2d.lineTo(58*s, 0); ctx2d.stroke();
+    ctx2d.restore();
+  }
+  ctx2d.globalAlpha = 1;
+
+  // Tail boom (tapered)
+  ctx2d.fillStyle = '#002800'; ctx2d.strokeStyle = '#00ff41'; ctx2d.lineWidth = 1*s;
+  ctx2d.beginPath();
+  ctx2d.moveTo(cx-38*s, cy-2*s);
+  ctx2d.lineTo(cx-75*s, cy-1*s);
+  ctx2d.lineTo(cx-75*s, cy+5*s);
+  ctx2d.lineTo(cx-38*s, cy+7*s);
   ctx2d.closePath(); ctx2d.fill(); ctx2d.stroke();
-  // cockpit window
-  ctx2d.fillStyle='#00ff41'; ctx2d.fillRect(cx+41*s, cy-4*s, 12*s, 7*s);
-  // skids
-  ctx2d.lineWidth=1.5*s; ctx2d.beginPath();
-  ctx2d.moveTo(cx-20*s,cy+12*s); ctx2d.lineTo(cx-20*s,cy+24*s);
-  ctx2d.moveTo(cx+12*s,cy+12*s); ctx2d.lineTo(cx+12*s,cy+24*s);
-  ctx2d.moveTo(cx-28*s,cy+24*s); ctx2d.lineTo(cx+22*s,cy+24*s);
+
+  // Vertical tail fin
+  ctx2d.strokeStyle = '#00ff41'; ctx2d.lineWidth = 2*s;
+  ctx2d.beginPath();
+  ctx2d.moveTo(cx-74*s, cy-20*s);
+  ctx2d.lineTo(cx-66*s, cy-4*s);
+  ctx2d.moveTo(cx-74*s, cy-20*s);
+  ctx2d.lineTo(cx-74*s, cy+8*s);
   ctx2d.stroke();
+
+  // Tail rotor hub
+  ctx2d.fillStyle = '#aaffbb';
+  ctx2d.beginPath(); ctx2d.arc(cx-74*s, cy-5*s, 2*s, 0, Math.PI*2); ctx2d.fill();
+
+  // Tail rotor blades with motion blur
+  for (let ghost = 2; ghost >= 0; ghost--) {
+    const ga = rotA * 1.6 - ghost * 0.28;
+    ctx2d.save();
+    ctx2d.translate(cx-74*s, cy-5*s); ctx2d.rotate(ga);
+    ctx2d.globalAlpha = ghost === 0 ? 0.85 : 0.15;
+    ctx2d.strokeStyle = '#00ff41'; ctx2d.lineWidth = 1.5*s; ctx2d.lineCap = 'round';
+    ctx2d.beginPath(); ctx2d.moveTo(0,-12*s); ctx2d.lineTo(0,12*s); ctx2d.stroke();
+    ctx2d.rotate(Math.PI/2);
+    ctx2d.beginPath(); ctx2d.moveTo(0,-10*s); ctx2d.lineTo(0,10*s); ctx2d.stroke();
+    ctx2d.restore();
+  }
+  ctx2d.globalAlpha = 1;
+
+  // Fuselage body
+  ctx2d.fillStyle = '#001a00'; ctx2d.strokeStyle = '#00ff41'; ctx2d.lineWidth = 1.5*s;
+  ctx2d.beginPath();
+  if (ctx2d.roundRect) {
+    ctx2d.roundRect(cx-38*s, cy-12*s, 76*s, 24*s, 4*s);
+  } else {
+    ctx2d.rect(cx-38*s, cy-12*s, 76*s, 24*s);
+  }
+  ctx2d.fill(); ctx2d.stroke();
+
+  // Fuselage panel lines
+  ctx2d.strokeStyle = '#004010'; ctx2d.lineWidth = 0.8*s;
+  ctx2d.beginPath();
+  ctx2d.moveTo(cx-18*s, cy-12*s); ctx2d.lineTo(cx-18*s, cy+12*s);
+  ctx2d.moveTo(cx+10*s, cy-12*s); ctx2d.lineTo(cx+10*s, cy+12*s);
+  ctx2d.stroke();
+
+  // Cockpit nose
+  ctx2d.fillStyle = '#001000'; ctx2d.strokeStyle = '#00ff41'; ctx2d.lineWidth = 1.5*s;
+  ctx2d.beginPath();
+  ctx2d.moveTo(cx+38*s, cy-12*s);
+  ctx2d.lineTo(cx+65*s, cy);
+  ctx2d.lineTo(cx+38*s, cy+12*s);
+  ctx2d.closePath(); ctx2d.fill(); ctx2d.stroke();
+
+  // Cockpit window
+  ctx2d.fillStyle = '#00ff41';
+  ctx2d.fillRect(cx+40*s, cy-8*s, 15*s, 11*s);
+  // Window glint
+  ctx2d.fillStyle = '#aaffbb';
+  ctx2d.fillRect(cx+41*s, cy-7*s, 5*s, 2.5*s);
+
+  // Weapon hardpoints (medium/large helis)
+  if (s > 0.8) {
+    ctx2d.fillStyle = '#003000'; ctx2d.strokeStyle = '#00ff41'; ctx2d.lineWidth = 0.8*s;
+    ctx2d.fillRect(cx-12*s, cy+12*s, 9*s, 5*s); ctx2d.strokeRect(cx-12*s, cy+12*s, 9*s, 5*s);
+    ctx2d.fillRect(cx+8*s,  cy+12*s, 9*s, 5*s); ctx2d.strokeRect(cx+8*s,  cy+12*s, 9*s, 5*s);
+  }
+
+  // Landing skids
+  ctx2d.strokeStyle = '#00ff41'; ctx2d.lineWidth = 1.5*s;
+  ctx2d.beginPath();
+  ctx2d.moveTo(cx-22*s, cy+12*s); ctx2d.lineTo(cx-24*s, cy+24*s);
+  ctx2d.moveTo(cx+12*s, cy+12*s); ctx2d.lineTo(cx+14*s, cy+24*s);
+  ctx2d.moveTo(cx-30*s, cy+24*s); ctx2d.lineTo(cx+22*s, cy+24*s);
+  ctx2d.stroke();
+
+  // Navigation light (blinking red at tail)
+  if ((Date.now() / 500 | 0) % 2 === 0) {
+    ctx2d.globalAlpha = 0.85;
+    ctx2d.fillStyle = '#ff2200';
+    ctx2d.beginPath(); ctx2d.arc(cx-60*s, cy+2*s, 2*s, 0, Math.PI*2); ctx2d.fill();
+    ctx2d.globalAlpha = 1;
+  }
 }
 
 function drawHeli() { drawHeliModel(ctx, heli.x, heli.y, selectedModel.scale, rotorA); }
 
-// â”€â”€ Draw: Buildings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Screen shake ─────────────────────────────────────────────────────────────
+function triggerShake(mag) { shakeMag = Math.max(shakeMag, mag); }
+
+// ── Enhanced explosions ───────────────────────────────────────────────────────
+function mkExplosion(x, y, size) {
+  size = size || 1;
+  explosions.push({ x, y, frame: 0, maxFrame: 22, size });
+  mkSparks(x, y);
+  if (size > 1.2) mkSparks(x, y);
+  triggerShake(size * 6);
+}
+
+function updateExplosions() {
+  explosions = explosions.filter(e => ++e.frame < e.maxFrame);
+}
+
+function drawExplosions() {
+  for (const e of explosions) {
+    const t  = e.frame / e.maxFrame;
+    const s  = e.size;
+    const coreR = Math.max(0.1, 22 * s * (1 - t));
+    ctx.globalAlpha = (1 - t) * 0.9;
+    const grad = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, coreR);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.25, '#aaffcc');
+    grad.addColorStop(1, 'rgba(0,255,65,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(e.x, e.y, coreR, 0, Math.PI*2); ctx.fill();
+    const ringR = Math.max(0.1, 50 * s * t);
+    ctx.globalAlpha = (1 - t) * 0.55;
+    ctx.strokeStyle = '#00ff41'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(e.x, e.y, ringR, 0, Math.PI*2); ctx.stroke();
+    if (t > 0.15) {
+      const ring2R = Math.max(0.1, 35 * s * (t - 0.15));
+      ctx.globalAlpha = (1 - t) * 0.3;
+      ctx.beginPath(); ctx.arc(e.x, e.y, ring2R, 0, Math.PI*2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ── Parallax background ───────────────────────────────────────────────────────
+function initStars() {
+  stars = [];
+  for (let i = 0; i < 90; i++) {
+    stars.push({ x: Math.random() * W, y: Math.random() * (GROUND_Y - 40),
+                 r: Math.random() < 0.12 ? 1.5 : 0.8, phase: Math.random() * Math.PI * 2 });
+  }
+}
+
+function initClouds() {
+  clouds = [];
+  for (let i = 0; i < 7; i++) {
+    clouds.push({ x: Math.random() * W, y: 25 + Math.random() * 100,
+                  w: 70 + Math.random() * 120, h: 18 + Math.random() * 28,
+                  alpha: 0.04 + Math.random() * 0.05 });
+  }
+}
+
+function initBgCity() {
+  bgCity = [];
+  let x = 0;
+  while (x < W * 4) {
+    const h = 18 + Math.random() * 65, w = 14 + Math.random() * 45;
+    bgCity.push({ x, w, h }); x += w + 1 + Math.random() * 12;
+  }
+}
+
+function drawBackground() {
+  for (const st of stars) {
+    const flicker = 0.6 + 0.4 * Math.sin(st.phase + Date.now() * 0.0009);
+    ctx.globalAlpha = flicker * 0.55;
+    ctx.fillStyle = '#00ff41';
+    ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 0.09;
+  ctx.fillStyle = '#001a00';
+  for (const bg of bgCity) {
+    const sx = ((bg.x - bgScrollX * 0.15) % (W * 3) + W * 3) % (W * 3) - 60;
+    if (sx > W + 50) continue;
+    ctx.fillRect(sx, GROUND_Y - bg.h, bg.w, bg.h);
+  }
+  for (const cl of clouds) {
+    ctx.globalAlpha = cl.alpha;
+    ctx.fillStyle = '#00ff41';
+    ctx.beginPath(); ctx.ellipse(cl.x, cl.y, cl.w / 2, cl.h / 2, 0, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ── Ground details ─────────────────────────────────────────────────────────────
+function mkGroundDetail(x) {
+  const r = Math.random();
+  if (r < 0.38) return { x, type: 'tree',    h: 18 + Math.random()*18 | 0 };
+  if (r < 0.68) return { x, type: 'lamp',    h: 26 + Math.random()*8  | 0 };
+  return              { x, type: 'antenna', h: 32 + Math.random()*22 | 0 };
+}
+
+function seedGroundDetails() {
+  groundDetails = [];
+  let x = 20;
+  while (x < W * 2.5) { groundDetails.push(mkGroundDetail(x)); x += 28 + Math.random() * 55 | 0; }
+}
+
+function updateGroundDetails(spd) {
+  for (const d of groundDetails) d.x -= spd;
+  groundDetails = groundDetails.filter(d => d.x > -20);
+  const last = groundDetails[groundDetails.length - 1];
+  if (!last || last.x < W + 60) {
+    const nx = (last ? last.x : W) + 28 + Math.random() * 55 | 0;
+    groundDetails.push(mkGroundDetail(nx));
+  }
+}
+
+function drawGroundDetails() {
+  for (const d of groundDetails) {
+    const bx = d.x, by = GROUND_Y;
+    if (d.type === 'tree') {
+      ctx.strokeStyle = '#003a10'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx, by - d.h * 0.35); ctx.stroke();
+      ctx.fillStyle = '#002200'; ctx.strokeStyle = '#009a28'; ctx.lineWidth = 1;
+      for (let i = 0; i < 3; i++) {
+        const ty = by - d.h * 0.3 - i * d.h * 0.2;
+        const tw = d.h * 0.42 - i * 3;
+        ctx.beginPath();
+        ctx.moveTo(bx - tw, ty); ctx.lineTo(bx, ty - d.h * 0.26); ctx.lineTo(bx + tw, ty);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    } else if (d.type === 'lamp') {
+      ctx.strokeStyle = '#005a18'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx, by - d.h);
+      ctx.moveTo(bx, by - d.h); ctx.lineTo(bx + 10, by - d.h + 4); ctx.stroke();
+      ctx.globalAlpha = 0.3 + 0.1 * Math.sin(Date.now() * 0.002 + bx);
+      ctx.fillStyle = '#00ff41';
+      ctx.beginPath(); ctx.arc(bx + 10, by - d.h + 4, 3, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.strokeStyle = '#004a10'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx, by - d.h); ctx.stroke();
+      for (let i = 0.3; i < 1; i += 0.22) {
+        const bary = by - d.h * i, barw = d.h * 0.16 * (1 - i * 0.5);
+        ctx.beginPath(); ctx.moveTo(bx - barw, bary); ctx.lineTo(bx + barw, bary); ctx.stroke();
+      }
+      if ((Date.now() / 700 | 0) % 2 === 0) {
+        ctx.fillStyle = '#ff4400'; ctx.globalAlpha = 0.8;
+        ctx.beginPath(); ctx.arc(bx, by - d.h, 2, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+}
+
+// ── Finish line ────────────────────────────────────────────────────────────────
+function drawFinishLine() {
+  if (currentLevel === 5) return;
+  if (finishLineX > W + 30 || finishLineX < -20) return;
+  const x = Math.round(finishLineX);
+  const sqH = 18;
+  for (let i = 0; i * sqH < GROUND_Y; i++) {
+    ctx.fillStyle = (i % 2 === 0) ? '#00ff41' : '#003a10';
+    ctx.fillRect(x - 5, i * sqH, 10, sqH);
+  }
+  ctx.save();
+  ctx.strokeStyle = '#00ff41'; ctx.lineWidth = 2;
+  ctx.shadowColor = '#00ff41'; ctx.shadowBlur = 14;
+  ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GROUND_Y); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = '#00ff41';
+  ctx.font = “bold 11px 'Courier New'”;
+  ctx.textAlign = 'center'; ctx.fillText('FINISH', x, 16); ctx.textAlign = 'left';
+}
+
 function drawBuildings() {
   for (const b of buildings) {
-    const cx = b.x + b.baseW / 2;
+    const cx  = b.x + b.baseW / 2;
     let curY  = GROUND_Y;
+    let topY  = GROUND_Y;
 
-    for (const lay of b.layers) {
-      const lx = Math.round(cx - lay.w / 2);
-      const ly = curY - lay.h;
+    for (let li = 0; li < b.layers.length; li++) {
+      const lay = b.layers[li];
+      const lx  = Math.round(cx - lay.w / 2);
+      const ly  = curY - lay.h;
 
-      ctx.fillStyle = G2;
+      // Slightly varied dark fill per building
+      ctx.fillStyle = b.shade || G2;
       ctx.fillRect(lx, ly, lay.w, lay.h);
-      ctx.strokeStyle = G1;
-      ctx.lineWidth = 1;
+
+      // Outer border
+      ctx.strokeStyle = G1; ctx.lineWidth = 1;
       ctx.strokeRect(lx, ly, lay.w, lay.h);
 
-      // windows
+      // Interior panel / floor line
+      if (lay.h > 14) {
+        ctx.strokeStyle = '#003a10'; ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(lx + 1, ly + lay.h * 0.45);
+        ctx.lineTo(lx + lay.w - 1, ly + lay.h * 0.45); ctx.stroke();
+      }
+
+      // Windows
       const nw = lay.wins.length;
-      const wW = 4, wH = Math.min(5, lay.h - 4);
+      const wW = 5, wH = Math.min(6, lay.h - 5);
       if (nw > 0 && wH > 1) {
         const span = lay.w - 6;
         const gap  = nw === 1 ? 0 : (span - wW) / (nw - 1);
         for (let j = 0; j < nw; j++) {
           const wx = lx + 3 + (nw === 1 ? (span - wW) / 2 : j * gap);
           const wy = ly + (lay.h - wH) / 2;
-          ctx.fillStyle = lay.wins[j] ? G1 : '#001800';
+          // Flicker some lit windows
+          const lit = lay.wins[j];
+          if (lit) {
+            const flicker = Math.sin(Date.now() * 0.003 + b.x * 0.1 + j * 1.7) > 0.92;
+            ctx.fillStyle = flicker ? '#aaffbb' : G1;
+          } else {
+            ctx.fillStyle = '#001800';
+          }
           ctx.fillRect(Math.round(wx), Math.round(wy), wW, wH);
+          // Window frame highlight on lit windows
+          if (lit) {
+            ctx.strokeStyle = '#aaffbb'; ctx.lineWidth = 0.5;
+            ctx.strokeRect(Math.round(wx), Math.round(wy), wW, wH);
+          }
         }
       }
       curY -= lay.h;
+      topY = ly;
+    }
+
+    // Rooftop details on tallest buildings
+    const topLayer = b.layers[b.layers.length - 1];
+    if (topLayer && topLayer.h > 20) {
+      const rx = Math.round(cx - topLayer.w / 2);
+      // Water tower (random ~30% of tall buildings)
+      if (b.hasWaterTower) {
+        const tx = rx + topLayer.w * 0.7;
+        ctx.fillStyle = '#002800'; ctx.strokeStyle = '#00aa28'; ctx.lineWidth = 1;
+        // Tank
+        ctx.beginPath();
+        ctx.ellipse(tx, topY - 10, 7, 5, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        // Legs
+        ctx.beginPath();
+        ctx.moveTo(tx - 6, topY - 6); ctx.lineTo(tx - 4, topY);
+        ctx.moveTo(tx,     topY - 5); ctx.lineTo(tx,     topY);
+        ctx.moveTo(tx + 6, topY - 6); ctx.lineTo(tx + 4, topY);
+        ctx.stroke();
+      }
+      // Antenna (random ~50% of tall buildings)
+      if (b.hasAntenna) {
+        const ax = cx - 4 + Math.random() * 8 | 0;
+        const ah = 14 + Math.random() * 16 | 0;
+        ctx.strokeStyle = '#00aa28'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(ax, topY); ctx.lineTo(ax, topY - ah); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(ax - 5, topY - ah * 0.6); ctx.lineTo(ax + 5, topY - ah * 0.6);
+        ctx.moveTo(ax - 3, topY - ah * 0.8); ctx.lineTo(ax + 3, topY - ah * 0.8);
+        ctx.stroke();
+        // Blinking tip
+        if ((Date.now() / 600 | 0) % 2 === 0) {
+          ctx.fillStyle = '#ff2200'; ctx.globalAlpha = 0.75;
+          ctx.beginPath(); ctx.arc(ax, topY - ah, 2, 0, Math.PI*2); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+
+    // Neon sign on some ground-floor facades
+    if (b.hasNeon) {
+      const nw2 = Math.min(b.baseW - 4, 24);
+      const nx2 = b.x + (b.baseW - nw2) / 2;
+      const ny2 = GROUND_Y - 10;
+      const neonAlpha = 0.5 + 0.3 * Math.sin(Date.now() * 0.004 + b.x);
+      ctx.globalAlpha = neonAlpha;
+      ctx.strokeStyle = '#00ff41'; ctx.lineWidth = 2;
+      ctx.strokeRect(nx2, ny2, nw2, 7);
+      ctx.globalAlpha = 1;
     }
   }
 }
@@ -2201,41 +2593,35 @@ function fmtTime(s) {
   return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
 }
 
-function startTimer() {
-  timeLeft = LEVEL_DURATION;
-  const el = document.getElementById('hud-timer');
-  el.classList.remove('warn');
-  el.textContent = fmtTime(timeLeft);
+function startLevel() {
+  finishLineX = W + LEVEL_DIST;
+  levelDone   = false;
+  document.getElementById('hud-timer').textContent = LEVEL_DIST + 'm';
+}
 
-  timerTick = setInterval(() => {
-    timeLeft--;
-    el.textContent = fmtTime(timeLeft);
-    if (timeLeft <= 5) el.classList.add('warn');
-    else el.classList.remove('warn');
-    if (timeLeft <= 0) {
-      clearInterval(timerTick);
-      if (currentLevel < TOTAL_LEVELS) {
-        currentLevel++;
-        document.getElementById('hud-level-num').textContent = currentLevel;
-        showLevelTransition(currentLevel, true);
-      } else {
-        // Level 5 complete — award cave survival bonus if not crashed
-        if (currentLevel === 5 && !caveCrashed) {
-          score += 10000;
-          document.getElementById('hud-score').textContent = score.toLocaleString();
-          caveBonusActive = true;
-          sndCaveBonus();
-          setTimeout(() => endGame(), 3500);
-        } else {
-          endGame();
-        }
-      }
+function handleLevelComplete() {
+  gameRunning = false;
+  if (rafId) cancelAnimationFrame(rafId);
+
+  if (currentLevel < TOTAL_LEVELS) {
+    currentLevel++;
+    document.getElementById('hud-level-num').textContent = currentLevel;
+    showLevelTransition(currentLevel, true);
+  } else {
+    // Final level done — cave bonus if survived
+    if (currentLevel === 5 && !caveCrashed) {
+      score += 10000;
+      document.getElementById('hud-score').textContent = score.toLocaleString();
+      caveBonusActive = true;
+      sndCaveBonus();
+      setTimeout(() => endGame(), 3500);
+    } else {
+      endGame();
     }
-  }, 1000);
+  }
 }
 
 function showLevelTransition(level, isNext) {
-  clearInterval(timerTick);
   gameRunning = false;
   if (rafId) cancelAnimationFrame(rafId);
 
@@ -2276,7 +2662,7 @@ function showLevelTransition(level, isNext) {
   setTimeout(() => {
     lt.classList.remove('show');
     gameRunning = true;
-    startTimer();
+    startLevel();
     loop();
   }, 2200);
 }
@@ -2285,7 +2671,7 @@ function showLevelTransition(level, isNext) {
 function update() {
   rotorA += 0.27;
 
-  // Helicopter movement â€“ all 4 directions
+  // Helicopter movement — all 4 directions
   if (keys['ArrowUp']    || keys['KeyW'])
       heli.y = Math.max(36, heli.y - (HELI_SPD * selectedModel.speedMult));
   if (keys['ArrowDown']  || keys['KeyS'])
@@ -2307,6 +2693,26 @@ function update() {
   if (keys['ArrowRight'] || keys['KeyD']) spd += 1.8;
   if (keys['ArrowLeft']  || keys['KeyA']) spd  = Math.max(0.4, spd - 1.2);
 
+  // Parallax updates
+  bgScrollX += spd;
+  for (const cl of clouds) {
+    cl.x -= spd * 0.3;
+    if (cl.x + cl.w / 2 < -10) { cl.x = W + cl.w / 2; cl.y = 25 + Math.random() * 100; }
+  }
+
+  // Finish line tracking (not for cave — it uses its own scroll)
+  if (currentLevel !== 5) {
+    finishLineX -= spd;
+    const distLeft = Math.max(0, Math.floor(finishLineX - heli.x));
+    document.getElementById('hud-timer').textContent = distLeft + 'm';
+
+    if (!levelDone && finishLineX < heli.x) {
+      levelDone = true;
+      handleLevelComplete();
+      return;
+    }
+  }
+
   for (const b of buildings) b.x -= spd;
 
   // Cull off-left
@@ -2319,17 +2725,20 @@ function update() {
     buildings.push(mkBuilding(nx));
   }
 
+  // Ground details
+  updateGroundDetails(spd);
+
   // Bombs
   bombs = bombs.filter(bm => {
     bm.y += BOMB_SPD;
-    if (bm.y > GROUND_Y + 10) { mkSparks(bm.x, GROUND_Y - 2); return false; }
+    if (bm.y > GROUND_Y + 10) { mkExplosion(bm.x, GROUND_Y - 4, 0.6); return false; }
 
     for (const b of buildings) {
       if (bm.x < b.x - 3 || bm.x > b.x + b.baseW + 3) continue;
       for (const r of layerRects(b)) {
         if (bm.x >= r.x && bm.x <= r.x + r.w &&
             bm.y >= r.y && bm.y <= r.y + r.h) {
-          mkSparks(bm.x, bm.y);
+          mkExplosion(bm.x, bm.y, 1.0);
           b.layers.splice(r.i, 1);
           score += 100;
           sndBombHit();
@@ -2349,6 +2758,7 @@ function update() {
   updateEnemyHelis();
   updateStorm();
   updateMines();
+  updateExplosions();
 
   // Sparks
   sparks = sparks.filter(s => {
@@ -2359,10 +2769,26 @@ function update() {
 
 // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function render() {
+  // Screen shake
+  if (shakeMag > 0) {
+    shakeX = (Math.random() - 0.5) * shakeMag * 2;
+    shakeY = (Math.random() - 0.5) * shakeMag * 2;
+    shakeMag = Math.max(0, shakeMag - 1.1);
+  } else { shakeX = 0; shakeY = 0; }
+
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+
+  drawBackground();
+
   const isCityLevel = currentLevel !== 4 && currentLevel !== 5;
-  if (isCityLevel) drawGround();
+  if (isCityLevel) {
+    drawGround();
+    drawGroundDetails();
+  }
   drawMissiles();
   if (isCityLevel) drawBuildings();
   drawObstacles();
@@ -2372,8 +2798,12 @@ function render() {
   drawMines();
   drawEnemyHelis();
   drawStormEffect();
+  drawExplosions();
   drawSparks();
   drawHeli();
+  drawFinishLine();
+
+  ctx.restore();
 }
 
 // â”€â”€ Game Loop â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -2411,7 +2841,19 @@ function startGame() {
   heli.y       = 230;
   gameRunning  = false;
 
+  // New visual state
+  shakeX = 0; shakeY = 0; shakeMag = 0;
+  explosions = [];
+  bgScrollX = 0;
+  finishLineX = W + LEVEL_DIST;
+  levelDone = false;
+
   seedBuildings();
+  seedGroundDetails();
+  initStars();
+  initClouds();
+  initBgCity();
+
   document.getElementById('hud-name').textContent      = playerName;
   document.getElementById('hud-score').textContent     = '0';
   document.getElementById('hud-level-num').textContent = currentLevel;
@@ -2424,7 +2866,6 @@ function startGame() {
 }
 
 function endGame() {
-  clearInterval(timerTick);
   gameRunning = false;
   if (rafId) cancelAnimationFrame(rafId);
 
@@ -2443,16 +2884,34 @@ function endGame() {
 }
 
 // â”€â”€ UI Wiring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Splash → heli-select
 document.getElementById('start-btn').addEventListener('click', () => {
   const raw = document.getElementById('player-name').value.trim();
   playerName = (raw || 'ACE').toUpperCase().slice(0, 12);
-  startGame();
+  showScreen('heli-select');
 });
 
 document.getElementById('player-name').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('start-btn').click();
 });
 
+// Heli-select → game
+document.getElementById('launch-btn').addEventListener('click', () => {
+  startGame();
+});
+
+// Style launch-btn hover like other buttons
+document.getElementById('launch-btn').addEventListener('mouseenter', () => {
+  const b = document.getElementById('launch-btn');
+  b.style.background = '#00ff41'; b.style.color = '#000';
+  b.style.boxShadow = '0 0 22px rgba(0,255,65,0.55)';
+});
+document.getElementById('launch-btn').addEventListener('mouseleave', () => {
+  const b = document.getElementById('launch-btn');
+  b.style.background = '#000'; b.style.color = '#00ff41'; b.style.boxShadow = '';
+});
+
+// Game over → splash
 document.getElementById('restart-btn').addEventListener('click', () => {
   showScreen('splash');
   initScores().then(() => {
