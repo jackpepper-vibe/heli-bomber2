@@ -297,7 +297,13 @@
     }
     .heli-card:hover { border-color:#00aa2a; }
     .heli-card.selected { border-color:#00ff41; box-shadow:0 0 14px rgba(0,255,65,0.35); }
-    .heli-card canvas { display:block; border:none; box-shadow:none; }
+    .heli-card canvas {
+      display: block;
+      border: none !important;
+      box-shadow: none !important;
+      max-width: none !important;
+      aspect-ratio: unset !important;
+    }
     .heli-card-name { font-size:0.6rem; letter-spacing:0.25em; color:#007a20; text-align:center; }
     .heli-card.selected .heli-card-name { color:#00ff41; }
     .heli-card-tag { font-size:0.55rem; letter-spacing:0.15em; color:#004010; }
@@ -1720,8 +1726,8 @@ let selectedModel = HELI_MODELS[0];
 
 function selectHeli(idx) {
   selectedModel = HELI_MODELS[idx];
-  document.querySelectorAll('.heli-card').forEach((el, i) => {
-    el.classList.toggle('selected', i === idx);
+  document.querySelectorAll('.heli-card').forEach(el => {
+    el.classList.toggle('selected', Number(el.dataset.model) === idx);
   });
 }
 
