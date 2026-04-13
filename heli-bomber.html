@@ -1,0 +1,2524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#000000">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="HELI BOMBER">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <title>HELI BOMBER</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000;
+      font-family: 'Courier New', monospace;
+      color: #00ff41;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* â”€â”€ SPLASH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    #splash {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 22px;
+      padding: 20px;
+      width: 100%;
+    }
+
+    .s-title {
+      text-align: center;
+    }
+
+    .s-title h1 {
+      font-size: clamp(2.4rem, 7vw, 5.5rem);
+      letter-spacing: 0.35em;
+      text-shadow: 0 0 18px #00ff41, 0 0 40px rgba(0,255,65,0.45);
+      animation: titlePulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes titlePulse {
+      0%,100% { text-shadow: 0 0 18px #00ff41, 0 0 40px rgba(0,255,65,0.4); }
+      50%      { text-shadow: 0 0 28px #00ff41, 0 0 60px rgba(0,255,65,0.7), 0 0 90px rgba(0,255,65,0.2); }
+    }
+
+    .s-title .sub {
+      font-size: 0.75rem;
+      letter-spacing: 0.5em;
+      color: #005a18;
+      margin-top: 5px;
+    }
+
+    .scores-panel {
+      border: 1px solid #00ff41;
+      padding: 14px 22px;
+      width: min(500px, 92vw);
+      box-shadow: 0 0 14px rgba(0,255,65,0.12);
+    }
+
+    .panel-hdr {
+      text-align: center;
+      letter-spacing: 0.35em;
+      font-size: 0.8rem;
+      color: #005a18;
+      margin-bottom: 10px;
+    }
+
+    .score-row {
+      display: flex;
+      font-size: 0.82rem;
+      line-height: 1.85;
+      gap: 6px;
+    }
+
+    .score-row .rk   { color: #005a18; width: 26px; flex-shrink: 0; }
+    .score-row .nm   { flex: 1; }
+    .score-row .dots { flex: 1; color: #003a0e; letter-spacing: 1px; overflow: hidden; }
+    .score-row .pts  { color: #00ff41; width: 60px; text-align: right; flex-shrink: 0; }
+    .score-row.hi    { color: #ffff44; }
+    .score-row.hi .pts { color: #ffff44; }
+
+    .no-scores { color: #003a0e; font-size: 0.78rem; text-align: center; letter-spacing: 0.2em; }
+
+    .name-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .name-lbl { font-size: 0.8rem; letter-spacing: 0.3em; color: #005a18; }
+
+    #player-name {
+      background: #000;
+      border: 1px solid #00ff41;
+      color: #00ff41;
+      font-family: 'Courier New', monospace;
+      font-size: 1.05rem;
+      letter-spacing: 0.25em;
+      padding: 8px 16px;
+      width: 230px;
+      text-align: center;
+      text-transform: uppercase;
+      outline: none;
+      caret-color: #00ff41;
+    }
+
+    #player-name::placeholder { color: #003a0e; }
+    #player-name:focus { box-shadow: 0 0 12px rgba(0,255,65,0.35); }
+
+    #start-btn {
+      background: #000;
+      border: 1px solid #00ff41;
+      color: #00ff41;
+      font-family: 'Courier New', monospace;
+      font-size: 0.88rem;
+      letter-spacing: 0.35em;
+      padding: 10px 36px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.12s;
+    }
+
+    #start-btn:hover, #start-btn:focus {
+      background: #00ff41;
+      color: #000;
+      box-shadow: 0 0 22px rgba(0,255,65,0.55);
+      outline: none;
+    }
+
+    .ctrl-hint {
+      font-size: 0.68rem;
+      letter-spacing: 0.18em;
+      color: #004010;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    /* â”€â”€ GAME â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    #game-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 7px;
+    }
+
+    #hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 920px;
+      max-width: 96vw;
+      font-size: 13px;
+      letter-spacing: 2px;
+    }
+
+    #hud-timer {
+      font-size: 16px;
+      letter-spacing: 4px;
+      transition: color 0.3s;
+    }
+
+    #hud-timer.warn { color: #ff4400; animation: timerBlink 0.5s step-end infinite; }
+
+    @keyframes timerBlink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    #wrap { position: relative; display: inline-block; }
+
+    canvas {
+      display: block;
+      border: 1px solid #00ff41;
+      box-shadow: 0 0 28px rgba(0,255,65,0.18);
+    }
+
+    #scan {
+      position: absolute; top:0; left:0; right:0; bottom:0;
+      background: repeating-linear-gradient(
+        transparent, transparent 2px,
+        rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 3px
+      );
+      pointer-events: none;
+    }
+
+    /* â”€â”€ GAME OVER OVERLAY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+    #hud-level { letter-spacing: 2px; font-size: 13px; }
+
+    /* ── LEVEL TRANSITION */
+    #level-transition {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.88);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 150;
+    }
+    #level-transition.show { display: flex; }
+    #lt-content { text-align: center; }
+    #lt-label {
+      font-size: 0.85rem;
+      letter-spacing: 0.6em;
+      color: #005a18;
+      margin-bottom: 8px;
+    }
+    #lt-num {
+      font-size: clamp(4rem, 15vw, 9rem);
+      letter-spacing: 0.1em;
+      text-shadow: 0 0 30px #00ff41, 0 0 70px rgba(0,255,65,0.5);
+      animation: ltPop 0.4s ease-out;
+    }
+    #lt-sub {
+      font-size: 0.78rem;
+      letter-spacing: 0.4em;
+      color: #007a20;
+      margin-top: 10px;
+    }
+    @keyframes ltPop {
+      0%   { transform: scale(0.4); opacity: 0; }
+      70%  { transform: scale(1.08); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    #gameover {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.9);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      z-index: 200;
+    }
+
+    #gameover.show { display: flex; }
+
+    #go-headline {
+      font-size: clamp(1.8rem, 5vw, 3.5rem);
+      letter-spacing: 0.3em;
+      text-shadow: 0 0 20px #00ff41;
+      animation: titlePulse 2s ease-in-out infinite;
+    }
+
+    #go-final {
+      font-size: 1.1rem;
+      letter-spacing: 0.2em;
+      color: #007a20;
+    }
+
+    #go-final span { color: #00ff41; font-size: 1.8rem; }
+
+    #go-rank-msg { font-size: 0.8rem; letter-spacing: 0.2em; color: #ffff44; min-height: 1.2em; }
+
+    #go-scores-panel {
+      border: 1px solid #00ff41;
+      padding: 13px 20px;
+      width: min(450px, 88vw);
+    }
+
+    #restart-btn {
+      background: #000;
+      border: 1px solid #00ff41;
+      color: #00ff41;
+      font-family: 'Courier New', monospace;
+      font-size: 0.88rem;
+      letter-spacing: 0.35em;
+      padding: 10px 36px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.12s;
+    }
+
+    #restart-btn:hover {
+      background: #00ff41;
+      color: #000;
+      box-shadow: 0 0 22px rgba(0,255,65,0.55);
+    }
+
+    /* -- HELI SELECTOR -------------------------------------------------- */
+    .heli-select-area { display:flex; flex-direction:column; align-items:center; gap:10px; }
+    .heli-select-label { font-size:0.8rem; letter-spacing:0.35em; color:#005a18; }
+    .heli-cards { display:flex; gap:14px; flex-wrap:wrap; justify-content:center; }
+    .heli-card {
+      display:flex; flex-direction:column; align-items:center; gap:6px;
+      cursor:pointer; border:1px solid #003a0e; padding:8px 10px 6px;
+      background:#000; transition:border-color 0.1s, box-shadow 0.1s; user-select:none;
+    }
+    .heli-card:hover { border-color:#00aa2a; }
+    .heli-card.selected { border-color:#00ff41; box-shadow:0 0 14px rgba(0,255,65,0.35); }
+    .heli-card canvas { display:block; border:none; box-shadow:none; }
+    .heli-card-name { font-size:0.6rem; letter-spacing:0.25em; color:#007a20; text-align:center; }
+    .heli-card.selected .heli-card-name { color:#00ff41; }
+    .heli-card-tag { font-size:0.55rem; letter-spacing:0.15em; color:#004010; }
+    .heli-card.selected .heli-card-tag { color:#005a18; }
+
+    /* ── Canvas scaling (fit phone screen) ─────────────────────────────────── */
+    canvas {
+      max-width: calc(100vw - 8px);
+      aspect-ratio: 920 / 520;
+      height: auto !important;
+    }
+
+    /* ── Portrait lock ──────────────────────────────────────────────────────── */
+    #portrait-lock {
+      display: none;
+      position: fixed; inset: 0;
+      background: #000;
+      z-index: 999;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+    }
+    @media (orientation: portrait) { #portrait-lock { display: flex; } }
+    .pl-arrow {
+      font-size: 3.5rem;
+      color: #00ff41;
+      animation: plSpin 2.2s ease-in-out infinite;
+      text-shadow: 0 0 18px #00ff41;
+    }
+    @keyframes plSpin {
+      0%   { transform: rotate(0deg); }
+      45%  { transform: rotate(-90deg); }
+      55%  { transform: rotate(-90deg); }
+      100% { transform: rotate(0deg); }
+    }
+    .pl-msg {
+      font-size: 0.85rem;
+      letter-spacing: 0.45em;
+      color: #005a18;
+      text-align: center;
+      line-height: 2;
+    }
+    .pl-msg span { color: #00ff41; }
+
+    /* ── Touch controls ─────────────────────────────────────────────────────── */
+    #touch-hud {
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 150px;
+      pointer-events: none;
+      z-index: 50;
+    }
+    .touch-active #touch-hud { display: block; }
+    #dpad {
+      position: absolute;
+      left: 16px; bottom: 14px;
+      width: 136px; height: 136px;
+      pointer-events: all;
+    }
+    .dp {
+      position: absolute;
+      width: 42px; height: 42px;
+      background: rgba(0,255,65,0.10);
+      border: 1px solid rgba(0,255,65,0.35);
+      color: #00ff41;
+      font-size: 17px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 5px;
+      user-select: none; -webkit-user-select: none;
+      touch-action: none;
+    }
+    .dp.held { background: rgba(0,255,65,0.28); border-color: #00ff41; }
+    #dp-up    { left: 47px; top: 0; }
+    #dp-down  { left: 47px; bottom: 0; }
+    #dp-left  { left: 0;    top: 47px; }
+    #dp-right { right: 0;   top: 47px; }
+    #fire-btn {
+      position: absolute;
+      right: 20px; bottom: 18px;
+      width: 90px; height: 90px;
+      background: rgba(0,255,65,0.10);
+      border: 2px solid rgba(0,255,65,0.4);
+      border-radius: 50%;
+      color: #00ff41;
+      font-family: 'Courier New', monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.12em;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: all;
+      user-select: none; -webkit-user-select: none;
+      touch-action: none;
+    }
+    #fire-btn.held { background: rgba(0,255,65,0.28); border-color: #00ff41; box-shadow: 0 0 16px rgba(0,255,65,0.4); }
+  </style>
+</head>
+<body>
+
+<!-- â•â• SPLASH â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<!-- Portrait lock -->
+<div id="portrait-lock">
+  <div class="pl-arrow">&#8635;</div>
+  <div class="pl-msg">ROTATE DEVICE<br><span>TO LANDSCAPE</span></div>
+</div>
+
+<!-- Touch controls (shown on touch devices during gameplay) -->
+<div id="touch-hud">
+  <div id="dpad">
+    <div class="dp" id="dp-up">&#9650;</div>
+    <div class="dp" id="dp-left">&#9664;</div>
+    <div class="dp" id="dp-right">&#9654;</div>
+    <div class="dp" id="dp-down">&#9660;</div>
+  </div>
+  <div id="fire-btn">FIRE</div>
+</div>
+
+<div id="splash">
+  <div class="s-title">
+    <h1>HELI BOMBER</h1>
+    <div class="sub">â–¸ URBAN AIR ASSAULT SIMULATOR â—‚</div>
+  </div>
+
+  <div class="scores-panel">
+    <div class="panel-hdr">[ TOP 10 PILOTS ]</div>
+    <div id="splash-scores-list"></div>
+  </div>
+
+  <div class="name-area">
+    <div class="name-lbl">â–¸ ENTER CALLSIGN â—‚</div>
+    <input id="player-name" type="text" maxlength="12"
+           placeholder="ACE" autocomplete="off" spellcheck="false">
+    <button id="start-btn">[ BEGIN MISSION ]</button>
+  </div>
+
+  <div class="heli-select-area">
+    <div class="heli-select-label">â–¸ SELECT AIRCRAFT â—‚</div>
+    <div class="heli-cards">
+      <div class="heli-card selected" data-model="0" onclick="selectHeli(0)">
+        <canvas id="prev-0" width="148" height="72"></canvas>
+        <div class="heli-card-name">AH-9 SCOUT</div>
+        <div class="heli-card-tag">LIGHT &nbsp;&middot;&nbsp; FAST &nbsp;&middot;&nbsp; AGILE</div>
+      </div>
+      <div class="heli-card" data-model="1" onclick="selectHeli(1)">
+        <canvas id="prev-1" width="186" height="84"></canvas>
+        <div class="heli-card-name">UH-22 ASSAULT</div>
+        <div class="heli-card-tag">MEDIUM &nbsp;&middot;&nbsp; BALANCED</div>
+      </div>
+      <div class="heli-card" data-model="2" onclick="selectHeli(2)">
+        <canvas id="prev-2" width="228" height="102"></canvas>
+        <div class="heli-card-name">MH-60 GUNSHIP</div>
+        <div class="heli-card-tag">HEAVY &nbsp;&middot;&nbsp; TOUGH &nbsp;&middot;&nbsp; SLOW</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ctrl-hint">
+    [W A S D  /  ARROW KEYS] FLY IN ALL DIRECTIONS &nbsp;&nbsp; [SPACE] DROP BOMB<br>
+    5 LEVELS &nbsp;&bull;&nbsp; 20 SECONDS EACH &nbsp;&bull;&nbsp; SCORE AS MANY POINTS AS POSSIBLE
+  </div>
+</div>
+
+<!-- â•â• GAME â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<div id="game-screen">
+  <div id="hud">
+    <span>PILOT: <strong id="hud-name">ACE</strong></span>
+    <span id="hud-level">LVL <strong id="hud-level-num">1</strong> / 5</span>
+    <span id="hud-timer">0:20</span>
+    <span>SCORE: <strong id="hud-score">0</strong></span>
+  </div>
+  <div id="wrap">
+    <canvas id="c"></canvas>
+    <div id="scan"></div>
+  </div>
+</div>
+
+<!-- â•â• GAME OVER â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<!-- LEVEL TRANSITION -->
+<div id="level-transition">
+  <div id="lt-content">
+    <div id="lt-label">LEVEL</div>
+    <div id="lt-num">1</div>
+    <div id="lt-sub"></div>
+  </div>
+</div>
+
+<div id="gameover">
+  <div id="go-headline">ALL LEVELS CLEARED</div>
+  <div id="go-final">5 LEVELS COMPLETE &nbsp;|&nbsp; SCORE: <span id="go-score-val">0</span></div>
+  <div id="go-rank-msg"></div>
+  <div id="go-scores-panel" class="scores-panel">
+    <div class="panel-hdr">[ UPDATED RANKINGS ]</div>
+    <div id="go-scores-list"></div>
+  </div>
+  <button id="restart-btn">[ FLY AGAIN ]</button>
+</div>
+
+<script>
+// â”€â”€ Canvas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const c   = document.getElementById('c');
+const ctx = c.getContext('2d');
+c.width   = 920;
+c.height  = 520;
+const W = c.width, H = c.height;
+
+const G1 = '#00ff41';   // bright green
+const G2 = '#001f00';   // dark fill
+const G3 = '#004a00';   // ground strip
+const GROUND_Y = H - 42;
+
+// ── Audio Engine ──────────────────────────────────────────────────────────────
+let audioCtx = null;
+
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// Generic synth helper
+function playTone({ freq = 440, type = 'sine', gain = 0.4, dur = 0.3,
+                    freqEnd = null, attack = 0.01, decay = 0.05,
+                    detune = 0, distortion = false } = {}) {
+  try {
+    const ac  = getAudio();
+    const now = ac.currentTime;
+
+    const osc = ac.createOscillator();
+    const env = ac.createGain();
+
+    osc.type    = type;
+    osc.frequency.setValueAtTime(freq, now);
+    if (freqEnd !== null) osc.frequency.exponentialRampToValueAtTime(freqEnd, now + dur);
+    if (detune) osc.detune.setValueAtTime(detune, now);
+
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(gain, now + attack);
+    env.gain.exponentialRampToValueAtTime(0.0001, now + attack + decay + dur);
+
+    let chain = osc;
+
+    if (distortion) {
+      const dist = ac.createWaveShaper();
+      const curve = new Float32Array(256);
+      for (let i = 0; i < 256; i++) {
+        const x = (i * 2) / 256 - 1;
+        curve[i] = (Math.PI + 200) * x / (Math.PI + 200 * Math.abs(x));
+      }
+      dist.curve = curve;
+      osc.connect(dist);
+      dist.connect(env);
+    } else {
+      osc.connect(env);
+    }
+
+    env.connect(ac.destination);
+    osc.start(now);
+    osc.stop(now + attack + decay + dur + 0.05);
+  } catch(e) {}
+}
+
+function playNoise({ gain = 0.3, dur = 0.2, filterFreq = 800, attack = 0.005 } = {}) {
+  try {
+    const ac     = getAudio();
+    const now    = ac.currentTime;
+    const buf    = ac.createBuffer(1, ac.sampleRate * (dur + 0.1), ac.sampleRate);
+    const data   = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+
+    const src    = ac.createBufferSource();
+    src.buffer   = buf;
+
+    const filt   = ac.createBiquadFilter();
+    filt.type    = 'bandpass';
+    filt.frequency.value = filterFreq;
+    filt.Q.value = 1.2;
+
+    const env    = ac.createGain();
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(gain, now + attack);
+    env.gain.exponentialRampToValueAtTime(0.0001, now + attack + dur);
+
+    src.connect(filt); filt.connect(env); env.connect(ac.destination);
+    src.start(now);
+  } catch(e) {}
+}
+
+// ── Named sound effects ───────────────────────────────────────────────────────
+function sndBombDrop() {
+  // Short descending whistle
+  playTone({ freq: 900, freqEnd: 280, type: 'sine', gain: 0.25,
+             dur: 0.18, attack: 0.005, decay: 0.01 });
+}
+
+function sndBombHit() {
+  // Percussive thud + noise burst
+  playNoise({ gain: 0.55, dur: 0.22, filterFreq: 320, attack: 0.003 });
+  playTone({ freq: 120, freqEnd: 40, type: 'triangle', gain: 0.5,
+             dur: 0.25, attack: 0.003, decay: 0.02 });
+}
+
+function sndHeliHit() {
+  // Harsh buzzy crunch — warning sound
+  playNoise({ gain: 0.7, dur: 0.35, filterFreq: 1800, attack: 0.002 });
+  playTone({ freq: 220, freqEnd: 80, type: 'sawtooth', gain: 0.45,
+             dur: 0.3, attack: 0.002, decay: 0.02, distortion: true });
+}
+
+function sndMissileLaunch() {
+  // Hissing whoosh with rising note
+  playNoise({ gain: 0.35, dur: 0.28, filterFreq: 2400, attack: 0.01 });
+  playTone({ freq: 180, freqEnd: 520, type: 'sawtooth', gain: 0.2,
+             dur: 0.28, attack: 0.01, decay: 0.01 });
+}
+
+
+function sndCrash() {
+  // Layer 1: brutal low-end impact thud
+  playNoise({ gain: 1.0, dur: 0.8, filterFreq: 180, attack: 0.001 });
+  // Layer 2: mid crunch
+  playNoise({ gain: 0.75, dur: 0.5, filterFreq: 900, attack: 0.002 });
+  // Layer 3: distorted pitch-drop
+  playTone({ freq: 240, freqEnd: 18, type: 'sawtooth', gain: 0.85,
+             dur: 0.9, attack: 0.001, decay: 0.05, distortion: true });
+  // Layer 4: high metallic scrape
+  playTone({ freq: 880, freqEnd: 110, type: 'square', gain: 0.5,
+             dur: 0.55, attack: 0.002, decay: 0.03, distortion: true });
+  // Layer 5: sub-bass rumble
+  playTone({ freq: 55, freqEnd: 20, type: 'sine', gain: 0.9,
+             dur: 1.1, attack: 0.002, decay: 0.08 });
+}
+
+function sndGameOver() {
+  // Descending minor-key "doom" arpeggio, staggered
+  const notes = [
+    { f: 440, t: 0    },
+    { f: 370, t: 320  },
+    { f: 311, t: 620  },
+    { f: 277, t: 900  },
+    { f: 220, t: 1220 },
+    { f: 185, t: 1600 },
+  ];
+  for (const n of notes) {
+    setTimeout(() => {
+      playTone({ freq: n.f, freqEnd: n.f * 0.92, type: 'square', gain: 0.28,
+                 dur: 0.38, attack: 0.01, decay: 0.05 });
+      playTone({ freq: n.f * 0.5, type: 'sine', gain: 0.18,
+                 dur: 0.42, attack: 0.02, decay: 0.06 });
+    }, n.t);
+  }
+}
+
+function sndCaveBonus() {
+  // Triumphant ascending major fanfare — bold and celebratory
+  const fanfare = [
+    { f: 330, t: 0,    dur: 0.12 },
+    { f: 330, t: 130,  dur: 0.12 },
+    { f: 330, t: 260,  dur: 0.12 },
+    { f: 262, t: 390,  dur: 0.18 },  // grace note dip
+    { f: 440, t: 520,  dur: 0.28 },  // big jump up
+    { f: 392, t: 820,  dur: 0.12 },
+    { f: 440, t: 960,  dur: 0.12 },
+    { f: 523, t: 1100, dur: 0.12 },  // peak
+    { f: 659, t: 1280, dur: 0.55 },  // triumphant hold
+  ];
+  for (const n of fanfare) {
+    setTimeout(() => {
+      playTone({ freq: n.f, type: 'square', gain: 0.30,
+                 dur: n.dur, attack: 0.008, decay: 0.06 });
+      playTone({ freq: n.f * 0.5, type: 'sine', gain: 0.20,
+                 dur: n.dur + 0.05, attack: 0.01, decay: 0.08 });
+    }, n.t);
+  }
+  // Final shimmer swell
+  setTimeout(() => {
+    playTone({ freq: 880, type: 'sine', gain: 0.18, dur: 0.7,
+               attack: 0.08, decay: 0.3, freqEnd: 1100 });
+    playNoise({ gain: 0.12, dur: 0.5, filterFreq: 3500, attack: 0.06 });
+  }, 1850);
+}
+function sndLevelStart(level) {
+  // Ascending fanfare arpeggio — pitch rises with level number
+  const base  = 220 * Math.pow(1.12, level - 1);
+  const notes = [base, base * 1.25, base * 1.5, base * 2];
+  notes.forEach((f, i) => {
+    setTimeout(() => {
+      playTone({ freq: f, type: 'square', gain: 0.22, dur: 0.12,
+                 attack: 0.01, decay: 0.08 });
+    }, i * 110);
+  });
+}
+
+// ── High-Score Persistence — global leaderboard via /api/scores ──────────────
+// Falls back to localStorage when API is unavailable (local dev / offline)
+const LS_KEY = 'heliBomberScores';
+let _scoreCache = [];
+
+function loadScores() { return _scoreCache.slice(); }
+
+async function initScores() {
+  try {
+    const r = await fetch('/api/scores');
+    if (r.ok) { _scoreCache = await r.json(); return; }
+  } catch(e) {}
+  // Offline fallback
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) _scoreCache = JSON.parse(raw);
+  } catch(e) {}
+}
+
+async function saveScore(name, pts) {
+  const entry = { name: (name.toUpperCase().trim() || 'ACE').slice(0, 12), score: Math.floor(pts) };
+  try {
+    const r = await fetch('/api/scores', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
+    });
+    if (r.ok) {
+      _scoreCache = await r.json();
+      localStorage.setItem(LS_KEY, JSON.stringify(_scoreCache));
+      return _scoreCache;
+    }
+  } catch(e) {}
+  // Offline fallback: local only
+  const list = _scoreCache.concat([entry]);
+  list.sort((a, b) => b.score - a.score);
+  _scoreCache = list.slice(0, 10);
+  localStorage.setItem(LS_KEY, JSON.stringify(_scoreCache));
+  return _scoreCache;
+}
+
+function renderScores(elId, list, highlightName) {
+  const el = document.getElementById(elId);
+  if (!list.length) {
+    el.innerHTML = '<div class="no-scores">-- NO RECORDS YET --</div>';
+    return;
+  }
+  const hn = (highlightName || '').toUpperCase().trim() || 'ACE';
+  el.innerHTML = list.map((s, i) => {
+    const hi = s.name === hn ? ' hi' : '';
+    const dots = 'Â·'.repeat(Math.max(3, 26 - s.name.length - String(s.score).length));
+    return `<div class="score-row${hi}">
+      <span class="rk">${String(i+1).padStart(2,'0')}.</span>
+      <span class="nm">${s.name}</span>
+      <span class="dots">${dots}</span>
+      <span class="pts">${s.score.toLocaleString()}</span>
+    </div>`;
+  }).join('');
+}
+
+// â”€â”€ Screen Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const $splash   = document.getElementById('splash');
+const $game     = document.getElementById('game-screen');
+const $gameover = document.getElementById('gameover');
+
+function showScreen(name) {
+  $splash.style.display   = name === 'splash'   ? 'flex'    : 'none';
+  $game.style.display     = name === 'game'     ? 'flex'    : 'none';
+  $gameover.classList.toggle('show', name === 'gameover');
+  if (name !== 'game') {
+    document.getElementById('level-transition').classList.remove('show');
+  }
+}
+
+// â”€â”€ Game Variables â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+let playerName  = 'ACE';
+let score       = 0;
+let timeLeft    = 20;
+let currentLevel = 1;
+const TOTAL_LEVELS = 8;
+const LEVEL_DURATION = 20;
+let timerTick   = null;
+let gameRunning = false;
+let rafId       = null;
+let rotorA      = 0;
+
+const heli = { x: 210, y: 230 };
+const HELI_SPD  = 3.5;
+const BOMB_SPD  = 7;
+const SCROLL    = 2.2;   // base world scroll speed (px/frame)
+
+let buildings = [], bombs = [], sparks = [], obstacles = [], missiles = [];
+
+// ── Level 4: Balloons + Forward Missiles ─────────────────────────────────────
+let balloons    = [];
+let fwdMissiles = [];   // player-fired forward shots (levels 4 + 6)
+
+// ── Level 6: Enemy Helicopters ───────────────────────────────────────────────
+let enemyHelis = [];
+
+// ── Level 7: Storm / Turbulence ──────────────────────────────────────────────
+let windX = 0, windY = 0, windTimer = 0;
+let stormMissiles = [], stormMissileTimer = 100, stormMissileFlash = 0;
+
+// ── Level 8: Minefield ───────────────────────────────────────────────────────
+let mines = [], mineFlashTimer = 0;
+
+const BALLOON_COLORS = ['#00ff41','#00ff41','#00ff41','#00ff41','#00ff41','#00ff41'];
+const BALLOON_COUNT  = 6;
+
+function mkBalloon() {
+  return {
+    x:     W + 60 + Math.random() * 300,
+    y:     60 + Math.random() * (GROUND_Y - 140),
+    vy:    (Math.random() - 0.5) * 0.5,   // gentle float
+    color: BALLOON_COLORS[Math.floor(Math.random() * BALLOON_COLORS.length)],
+    r:     22 + Math.random() * 14 | 0,    // radius 22–35
+    phase: Math.random() * Math.PI * 2,    // sine bob offset
+    alive: true,
+  };
+}
+
+function seedBalloons() {
+  balloons = [];
+  for (let i = 0; i < BALLOON_COUNT; i++) {
+    const b = mkBalloon();
+    b.x = 120 + (i / BALLOON_COUNT) * (W * 1.8); // spread across visible + off-right
+    balloons.push(b);
+  }
+}
+
+function updateBalloons() {
+  if (currentLevel !== 4) { balloons = []; if (currentLevel !== 6) fwdMissiles = []; return; }
+
+  const spd = SCROLL + (currentLevel - 1) * 0.5;
+
+  // Drift balloons left with world scroll + gentle bob
+  for (const b of balloons) {
+    b.x    -= spd * 0.6;   // balloons drift slower than ground
+    b.phase += 0.025;
+    b.y    += Math.sin(b.phase) * 0.4;
+  }
+
+  // Cull off-left, spawn replacements on right
+  balloons = balloons.filter(b => b.x + b.r > -20);
+  while (balloons.length < BALLOON_COUNT) {
+    balloons.push(mkBalloon());
+  }
+
+  // Forward missiles (player shots)
+  fwdMissiles = fwdMissiles.filter(m => {
+    m.x += m.vx;
+    if (m.x > W + 20) return false;
+
+    // Check each balloon
+    for (let i = balloons.length - 1; i >= 0; i--) {
+      const b = balloons[i];
+      const dx = m.x - b.x, dy = m.y - b.y;
+      if (Math.sqrt(dx*dx + dy*dy) < b.r + 4) {
+        mkSparks(b.x, b.y); mkSparks(b.x, b.y);
+        balloons.splice(i, 1);
+        score += 200;
+        sndBombHit();
+        document.getElementById('hud-score').textContent = score.toLocaleString();
+        return false;  // remove missile
+      }
+    }
+    return true;
+  });
+
+  // Heli collision with balloons
+  for (let i = balloons.length - 1; i >= 0; i--) {
+    const b = balloons[i];
+    const dx = heli.x - b.x, dy = heli.y - b.y;
+    if (Math.sqrt(dx*dx + dy*dy) < b.r + 18 * selectedModel.scale) {
+      mkSparks(b.x, b.y);
+      balloons.splice(i, 1);
+      score = Math.max(0, score - 200);
+      sndHeliHit();
+      document.getElementById('hud-score').textContent = score.toLocaleString();
+    }
+  }
+}
+
+
+// ── Level 5: Cave System ─────────────────────────────────────────────────────
+const CAVE_GREEN      = '#00ff41';
+const CAVE_DKGREEN    = '#003a10';
+const CAVE_MID        = '#007a20';
+const CAVE_CEILING    = 60;    // min ceiling height (px from top)
+const CAVE_FLOOR      = H - 60; // max floor pos
+
+let caveFormations = [];  // { x, type:'stag'|'stal', layers:[{h,w}], totalH, baseW }
+let caveFwdMissiles = []; // player-fired shots in level 5
+let caveScrollX     = 0;  // for cave ceiling/floor wave
+let caveCrashed     = false;
+
+// Cave profile: ceiling and floor heights as a function of world-x
+function caveProfile(wx) {
+  // Undulating cave walls using summed sines
+  const ceil  = CAVE_CEILING + 30 + 25 * Math.sin(wx * 0.008) + 15 * Math.sin(wx * 0.021 + 1.3);
+  const floor = CAVE_FLOOR   - 30 - 25 * Math.sin(wx * 0.011 + 2.1) - 15 * Math.sin(wx * 0.019);
+  return { ceil, floor };
+}
+
+function mkFormation(startX) {
+  const type   = Math.random() < 0.5 ? 'stag' : 'stal';
+  const nLay   = 4 + Math.floor(Math.random() * 4);  // 4–7 layers — must shoot to pass
+  const baseW  = 28 + Math.floor(Math.random() * 22);
+  const layers = [];
+  for (let i = 0; i < nLay; i++) {
+    const h = 26 + Math.floor(Math.random() * 24);   // 26–49px per layer — tall & imposing
+    const w = Math.max(8, baseW - i * 4);
+    layers.push({ h, w });
+  }
+  return { x: startX, type, layers, baseW };
+}
+
+function seedCave() {
+  caveFormations   = [];
+  caveFwdMissiles  = [];
+  caveCrashed      = false;
+  caveScrollX      = 0;
+  caveGameOverTimer = 0;
+  caveGameOverAlpha = 0;
+  caveBonusActive   = false;
+  caveBonusAlpha    = 0;
+  // Seed initial formations spread across visible area + off-right
+  let fx = W + 80;
+  for (let i = 0; i < 14; i++) {
+    caveFormations.push(mkFormation(fx));
+    fx += 70 + Math.floor(Math.random() * 60);
+  }
+}
+
+function updateCave() {
+  if (currentLevel !== 5) { caveFormations = []; caveFwdMissiles = []; return; }
+  if (caveCrashed) return;
+
+  const spd = SCROLL + (currentLevel - 1) * 0.5;
+  caveScrollX += spd;
+
+  // Move formations with scroll
+  for (const f of caveFormations) f.x -= spd;
+
+  // Cull off-left, spawn new on right
+  caveFormations = caveFormations.filter(f => f.x + f.baseW > -20);
+  const last = caveFormations[caveFormations.length - 1];
+  const nextX = (last ? last.x + last.baseW : W) + 70 + Math.floor(Math.random() * 60);
+  if (!last || last.x < W + 200) {
+    caveFormations.push(mkFormation(nextX));
+  }
+
+  // Heli boundary check (cave ceiling & floor)
+  const { ceil, floor } = caveProfile(caveScrollX);
+  const hs = selectedModel.scale;
+  const heliTop    = heli.y - 22 * hs;
+  const heliBottom = heli.y + 24 * hs;
+
+  if (heliTop < ceil || heliBottom > floor) {
+    triggerCaveCrash();
+    return;
+  }
+
+  // Forward missiles
+  caveFwdMissiles = caveFwdMissiles.filter(m => {
+    m.x += m.vx;
+    if (m.x > W + 30) return false;
+
+    // Check each formation
+    for (let fi = caveFormations.length - 1; fi >= 0; fi--) {
+      const f = caveFormations[fi];
+      if (Math.abs(m.x - f.x) > f.baseW + 10) continue;
+
+      // Work out bounding box of topmost surviving layer
+      const { ceil: fc, floor: ff } = caveProfile(caveScrollX + f.x - W / 2);
+      let totalH = 0;
+      for (const lay of f.layers) totalH += lay.h;
+
+      // y range of formation
+      let fy, fh;
+      if (f.type === 'stag') {
+        // stalagmite: grows up from floor
+        fy = ff - totalH;
+        fh = totalH;
+      } else {
+        // stalactite: hangs down from ceiling
+        fy = fc;
+        fh = totalH;
+      }
+
+      const cx = f.x + f.baseW / 2;
+      const hw = f.layers[0] ? f.layers[0].w / 2 : f.baseW / 2;
+
+      if (m.x >= cx - hw - 4 && m.x <= cx + hw + 4 &&
+          m.y >= fy - 4 && m.y <= fy + fh + 4) {
+        // Remove one layer (tip for stalactite, top for stalagmite)
+        if (f.layers.length > 0) {
+          f.layers.shift();
+          mkSparks(m.x, m.y);
+          score += 200;
+          sndBombHit();
+          document.getElementById('hud-score').textContent = score.toLocaleString();
+        }
+        if (f.layers.length === 0) {
+          caveFormations.splice(fi, 1);
+        }
+        return false; // remove missile
+      }
+    }
+    return true;
+  });
+
+  // Heli vs formations collision
+  for (let fi = caveFormations.length - 1; fi >= 0; fi--) {
+    const f = caveFormations[fi];
+    const { ceil: fc, floor: ff } = caveProfile(caveScrollX + f.x - W / 2);
+    let totalH = 0;
+    for (const lay of f.layers) totalH += lay.h;
+
+    let fy;
+    if (f.type === 'stag') fy = ff - totalH;
+    else                   fy = fc;
+
+    const cx   = f.x + f.baseW / 2;
+    const hw   = (f.layers[0] ? f.layers[0].w : f.baseW) / 2;
+    const hs2  = selectedModel.scale;
+    const hx1  = heli.x - 38 * hs2, hx2 = heli.x + 64 * hs2;
+    const hy1  = heli.y - 22 * hs2, hy2 = heli.y + 24 * hs2;
+
+    if (hx2 > cx - hw && hx1 < cx + hw && hy2 > fy && hy1 < fy + totalH) {
+      triggerCaveCrash();
+      return;
+    }
+  }
+}
+
+let caveGameOverTimer  = 0;
+let caveGameOverAlpha  = 0;
+let caveBonusActive    = false;   // true when 10k bonus banner is showing
+let caveBonusAlpha     = 0;       // fade-in progress 0→1
+
+function triggerCaveCrash() {
+  if (caveCrashed) return;
+  caveCrashed = true;
+  score = Math.max(0, score - 500);
+  document.getElementById('hud-score').textContent = score.toLocaleString();
+  for (let i = 0; i < 6; i++) mkSparks(heli.x + (Math.random()-0.5)*40, heli.y + (Math.random()-0.5)*30);
+  sndCrash();
+  setTimeout(() => {
+    if (currentLevel < TOTAL_LEVELS) {
+      currentLevel++;
+      document.getElementById('hud-level-num').textContent = currentLevel;
+      showLevelTransition(currentLevel, true);
+    } else {
+      endGame();
+    }
+  }, 2200);
+  caveGameOverTimer = 1;
+}
+
+function drawCaveGameOver() {
+  if (!caveCrashed || caveGameOverTimer === 0) return;
+  // Fade in
+  caveGameOverAlpha = Math.min(1, caveGameOverAlpha + 0.025);
+
+  // Dark vignette
+  ctx.globalAlpha = caveGameOverAlpha * 0.72;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+
+  if (caveGameOverAlpha < 0.3) return;
+
+  const a = Math.min(1, (caveGameOverAlpha - 0.3) / 0.7);
+
+  // Flicker effect
+  const flicker = Math.random() > 0.08 ? 1 : 0.4;
+
+  // ── GAME OVER banner ──────────────────────────────────────────────────────
+  ctx.save();
+  ctx.globalAlpha = a * flicker;
+
+  // Outer glow
+  ctx.shadowColor = '#00ff41';
+  ctx.shadowBlur  = 40;
+
+  ctx.font      = 'bold ' + Math.round(W * 0.085) + 'px "Courier New", monospace';
+  ctx.textAlign = 'center';
+
+  // Shadow pass
+  ctx.fillStyle = '#003a10';
+  ctx.fillText('CRASHED', W / 2 + 4, H / 2 + 4);
+
+  // Main text
+  ctx.fillStyle = '#00ff41';
+  ctx.fillText('CRASHED', W / 2, H / 2);
+
+  // Sub text
+  ctx.shadowBlur = 12;
+  ctx.font       = Math.round(W * 0.025) + 'px "Courier New", monospace';
+  ctx.fillStyle  = '#007a20';
+  ctx.fillText('-500 PTS  |  CONTINUING...', W / 2, H / 2 + Math.round(W * 0.065));
+
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function drawCaveBonus() {
+  if (!caveBonusActive) return;
+  caveBonusAlpha = Math.min(1, caveBonusAlpha + 0.03);
+  const a = caveBonusAlpha;
+
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.textAlign   = 'center';
+
+  // Pulsing outer glow
+  const pulse = 0.7 + 0.3 * Math.sin(Date.now() * 0.006);
+  ctx.shadowColor = '#00ff41';
+  ctx.shadowBlur  = 50 * pulse;
+
+  // Main banner background strip
+  ctx.globalAlpha = a * 0.55;
+  ctx.fillStyle   = '#000';
+  ctx.fillRect(0, H / 2 - 80, W, 140);
+  ctx.globalAlpha = a;
+
+  // Top line: CAVE CLEARED
+  ctx.font      = 'bold ' + Math.round(W * 0.058) + 'px "Courier New", monospace';
+  ctx.fillStyle = '#003a10';
+  ctx.fillText('CAVE CLEARED', W / 2 + 3, H / 2 - 22 + 3);
+  ctx.fillStyle = '#00ff41';
+  ctx.fillText('CAVE CLEARED', W / 2, H / 2 - 22);
+
+  // Bonus points line
+  ctx.shadowBlur = 30 * pulse;
+  ctx.font       = 'bold ' + Math.round(W * 0.044) + 'px "Courier New", monospace';
+  ctx.fillStyle  = '#003a10';
+  ctx.fillText('+ 10,000 BONUS', W / 2 + 2, H / 2 + 32 + 2);
+  ctx.fillStyle  = '#00ff41';
+  ctx.fillText('+ 10,000 BONUS', W / 2, H / 2 + 32);
+
+  // Sub-line
+  ctx.shadowBlur = 10;
+  ctx.font       = Math.round(W * 0.022) + 'px "Courier New", monospace';
+  ctx.fillStyle  = '#007a20';
+  ctx.fillText('MISSION COMPLETE', W / 2, H / 2 + 68);
+
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function fireCaveMissile() {
+  const s = selectedModel.scale;
+  caveFwdMissiles.push({
+    x:  heli.x + 65 * s,
+    y:  heli.y,
+    vx: 10,
+  });
+  sndMissileLaunch();
+}
+
+function drawCave() {
+  if (currentLevel !== 5) return;
+
+  // ── Draw cave walls ───────────────────────────────────────────────────────
+  // Sample the profile at many x points to draw the ceiling and floor polygons
+  const steps = 40;
+  const dx    = W / steps;
+
+  // Ceiling polygon
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  for (let i = 0; i <= steps; i++) {
+    const wx = caveScrollX + i * dx;
+    const { ceil } = caveProfile(wx);
+    if (i === 0) ctx.lineTo(0, ceil);
+    else         ctx.lineTo(i * dx, ceil);
+  }
+  ctx.lineTo(W, 0);
+  ctx.closePath();
+  ctx.fillStyle = CAVE_DKGREEN;
+  ctx.fill();
+  // Ceiling edge glow line
+  ctx.beginPath();
+  for (let i = 0; i <= steps; i++) {
+    const wx = caveScrollX + i * dx;
+    const { ceil } = caveProfile(wx);
+    if (i === 0) ctx.moveTo(0, ceil);
+    else         ctx.lineTo(i * dx, ceil);
+  }
+  ctx.strokeStyle = CAVE_GREEN;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Floor polygon
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  for (let i = 0; i <= steps; i++) {
+    const wx = caveScrollX + i * dx;
+    const { floor } = caveProfile(wx);
+    if (i === 0) ctx.lineTo(0, floor);
+    else         ctx.lineTo(i * dx, floor);
+  }
+  ctx.lineTo(W, H);
+  ctx.closePath();
+  ctx.fillStyle = CAVE_DKGREEN;
+  ctx.fill();
+  // Floor edge glow line
+  ctx.beginPath();
+  for (let i = 0; i <= steps; i++) {
+    const wx = caveScrollX + i * dx;
+    const { floor } = caveProfile(wx);
+    if (i === 0) ctx.moveTo(0, floor);
+    else         ctx.lineTo(i * dx, floor);
+  }
+  ctx.strokeStyle = CAVE_GREEN;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // ── Draw formations ───────────────────────────────────────────────────────
+  for (const f of caveFormations) {
+    if (f.layers.length === 0) continue;
+    const { ceil: fc, floor: ff } = caveProfile(caveScrollX + f.x - W / 2);
+
+    let curY;
+    if (f.type === 'stag') {
+      // stalagmite: build upward from floor
+      curY = ff;
+      for (let li = 0; li < f.layers.length; li++) {
+        const lay = f.layers[li];
+        const cx  = Math.round(f.x + f.baseW / 2 - lay.w / 2);
+        curY -= lay.h;
+        const shade = li === 0 ? CAVE_GREEN : (li === 1 ? CAVE_MID : CAVE_DKGREEN);
+        ctx.fillStyle   = CAVE_DKGREEN;
+        ctx.strokeStyle = shade;
+        ctx.lineWidth   = 1.5;
+        // Taper the shape: trapezoid
+        const taper = li * 2;
+        ctx.beginPath();
+        ctx.moveTo(cx + taper,         curY + lay.h);
+        ctx.lineTo(cx + lay.w - taper, curY + lay.h);
+        ctx.lineTo(cx + lay.w / 2 + Math.max(1, lay.w/2 - (li+1)*3), curY);
+        ctx.lineTo(cx + lay.w / 2 - Math.max(1, lay.w/2 - (li+1)*3), curY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+    } else {
+      // stalactite: hang down from ceiling
+      curY = fc;
+      for (let li = 0; li < f.layers.length; li++) {
+        const lay = f.layers[li];
+        const shade = li === 0 ? CAVE_GREEN : (li === 1 ? CAVE_MID : CAVE_DKGREEN);
+        ctx.fillStyle   = CAVE_DKGREEN;
+        ctx.strokeStyle = shade;
+        ctx.lineWidth   = 1.5;
+        const taper = li * 2;
+        const halfW = Math.max(1, lay.w / 2 - li * 3);
+        const topW  = lay.w - taper * 2;
+        ctx.beginPath();
+        ctx.moveTo(f.x + f.baseW/2 - topW/2, curY);
+        ctx.lineTo(f.x + f.baseW/2 + topW/2, curY);
+        ctx.lineTo(f.x + f.baseW/2 + halfW,  curY + lay.h);
+        ctx.lineTo(f.x + f.baseW/2 - halfW,  curY + lay.h);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        curY += lay.h;
+      }
+    }
+  }
+
+  // ── Draw cave missiles ────────────────────────────────────────────────────
+  for (const m of caveFwdMissiles) {
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.fillStyle = CAVE_GREEN;
+    ctx.beginPath();
+    ctx.moveTo(12, 0); ctx.lineTo(-6, -3); ctx.lineTo(-6, 3); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#aaffbb';
+    ctx.beginPath(); ctx.arc(11, 0, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = CAVE_DKGREEN;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(-18, 0); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // Crash overlay: flash then game-over banner
+  if (caveCrashed) {
+    if (caveGameOverAlpha < 0.05) {
+      // Initial white flash
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle   = '#00ff41';
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
+    drawCaveGameOver();
+  }
+
+  // Bonus banner (shown when player survives to the end)
+  drawCaveBonus();
+}
+function fireFwdMissile() {
+  const s = selectedModel.scale;
+  fwdMissiles.push({
+    x:  heli.x + 65 * s,   // tip of cockpit
+    y:  heli.y,
+    vx: 9,
+  });
+  sndMissileLaunch();
+}
+
+function drawBalloons() {
+  if (currentLevel !== 4) return;
+  for (const b of balloons) {
+    const x = b.x, y = b.y, r = b.r;
+
+    // Balloon envelope
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    const grad = ctx.createRadialGradient(x - r*0.3, y - r*0.3, r*0.05, x, y, r);
+    grad.addColorStop(0, b.color);
+    grad.addColorStop(1, 'rgba(0,40,8,0.85)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    // Highlight glint
+    ctx.beginPath();
+    ctx.arc(x - r*0.28, y - r*0.28, r*0.18, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.fill();
+
+    // Basket
+    ctx.strokeStyle = '#996633';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x - 7, y + r + 2, 14, 10);
+    ctx.strokeStyle = '#cc8844';
+    ctx.lineWidth = 1;
+    // Basket ropes
+    ctx.beginPath();
+    ctx.moveTo(x - 5, y + r);  ctx.lineTo(x - 7, y + r + 2);
+    ctx.moveTo(x + 5, y + r);  ctx.lineTo(x + 7, y + r + 2);
+    ctx.stroke();
+  }
+
+  // Draw forward missiles
+  ctx.fillStyle = '#00ff41';
+  for (const m of fwdMissiles) {
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    // Body
+    ctx.fillStyle = '#00ff41';
+    ctx.beginPath();
+    ctx.moveTo(12, 0); ctx.lineTo(-6, -3); ctx.lineTo(-6, 3); ctx.closePath(); ctx.fill();
+    // Nose
+    ctx.fillStyle = '#aaffbb';
+    ctx.beginPath(); ctx.arc(11, 0, 2, 0, Math.PI*2); ctx.fill();
+    // Exhaust
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = '#005a18';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(-16, 0); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+}
+
+// ── Level 6: Enemy Helicopters ───────────────────────────────────────────────
+function seedEnemyHelis() {
+  enemyHelis = [];
+  for (let i = 0; i < 5; i++) {
+    enemyHelis.push({
+      x: W + 80 + i * 160,
+      y: 80 + Math.random() * (GROUND_Y - 160),
+      vx: -(2.8 + Math.random() * 1.4),
+      vy: 0,
+      rotorA: Math.random() * Math.PI * 2,
+    });
+  }
+}
+
+function updateEnemyHelis() {
+  if (currentLevel !== 6) { enemyHelis = []; return; }
+  const spd = SCROLL + (currentLevel - 1) * 0.5;
+
+  // Replenish
+  while (enemyHelis.length < 5) {
+    const last = enemyHelis[enemyHelis.length - 1];
+    enemyHelis.push({
+      x: (last ? last.x : W) + 100 + Math.random() * 120,
+      y: 80 + Math.random() * (GROUND_Y - 160),
+      vx: -(2.8 + Math.random() * 1.4),
+      vy: 0,
+      rotorA: Math.random() * Math.PI * 2,
+    });
+  }
+
+  for (let i = enemyHelis.length - 1; i >= 0; i--) {
+    const e = enemyHelis[i];
+    e.rotorA += 0.3;
+    // Drift loosely toward player Y
+    const dy = heli.y - e.y;
+    e.vy += Math.sign(dy) * 0.07;
+    e.vy = Math.max(-2.2, Math.min(2.2, e.vy));
+    e.y  = Math.max(44, Math.min(GROUND_Y - 54, e.y + e.vy));
+    e.x += e.vx - spd * 0.3;
+
+    if (e.x + 120 < 0) { enemyHelis.splice(i, 1); continue; }
+
+    // Forward missile hits enemy heli
+    for (let mi = fwdMissiles.length - 1; mi >= 0; mi--) {
+      const m = fwdMissiles[mi];
+      const dx = m.x - e.x, dy2 = m.y - e.y;
+      if (Math.sqrt(dx*dx + dy2*dy2) < 46) {
+        mkSparks(e.x, e.y); mkSparks(e.x, e.y);
+        score += 300;
+        sndBombHit();
+        document.getElementById('hud-score').textContent = score.toLocaleString();
+        enemyHelis.splice(i, 1);
+        fwdMissiles.splice(mi, 1);
+        break;
+      }
+    }
+    if (i >= enemyHelis.length) continue;
+
+    // Collision with player
+    const dx2 = enemyHelis[i].x - heli.x, dy3 = enemyHelis[i].y - heli.y;
+    if (Math.sqrt(dx2*dx2 + dy3*dy3) < 54 * selectedModel.hitMult) {
+      mkSparks(enemyHelis[i].x, enemyHelis[i].y);
+      score = Math.max(0, score - 200);
+      sndHeliHit();
+      document.getElementById('hud-score').textContent = score.toLocaleString();
+      enemyHelis.splice(i, 1);
+    }
+  }
+
+  // Move forward missiles for level 6
+  fwdMissiles = fwdMissiles.filter(m => { m.x += m.vx; return m.x < W + 20; });
+}
+
+function drawEnemyHelis() {
+  if (currentLevel !== 6) return;
+  for (const e of enemyHelis) {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.scale(-1, 1);
+    drawHeliModel(ctx, 0, 0, 0.85, e.rotorA);
+    ctx.restore();
+  }
+  // Forward missiles
+  for (const m of fwdMissiles) {
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.fillStyle = G1;
+    ctx.beginPath();
+    ctx.moveTo(12, 0); ctx.lineTo(-6, -3); ctx.lineTo(-6, 3); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#aaffbb';
+    ctx.beginPath(); ctx.arc(11, 0, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = '#005a18'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(-16, 0); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+}
+
+// ── Level 7: Storm / Turbulence ──────────────────────────────────────────────
+function seedStorm() {
+  windX = 0; windY = 0; windTimer = 0;
+  stormMissiles = []; stormMissileTimer = 80; stormMissileFlash = 0;
+  for (const l of LAUNCHER_POSITIONS) { l.cooldown = 90 + Math.floor(Math.random() * 120); }
+}
+
+function updateStorm() {
+  if (currentLevel !== 7) { windX = 0; windY = 0; stormMissiles = []; return; }
+
+  // Gusts
+  windTimer--;
+  if (windTimer <= 0) {
+    const angle = Math.random() * Math.PI * 2;
+    const strength = 1.2 + Math.random() * 2.0;
+    windX = Math.cos(angle) * strength;
+    windY = Math.sin(angle) * strength;
+    windTimer = 35 + Math.floor(Math.random() * 45);
+  }
+  heli.x = Math.max(45, Math.min(W - 45, heli.x + windX * 0.45));
+  heli.y = Math.max(36, Math.min(GROUND_Y - 30, heli.y + windY * 0.45));
+
+  // Missiles
+  stormMissileTimer--;
+  if (stormMissileTimer <= 0) {
+    const lnch = LAUNCHER_POSITIONS[Math.floor(Math.random() * LAUNCHER_POSITIONS.length)];
+    const sx = lnch.x, sy = GROUND_Y - 22;
+    const dx = heli.x - sx, dy = heli.y - sy;
+    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+    stormMissiles.push({ x: sx, y: sy, vx: (dx/dist)*MSL_SPD, vy: (dy/dist)*MSL_SPD, angle: Math.atan2(dy, dx) });
+    sndMissileLaunch();
+    stormMissileTimer = 95 + Math.floor(Math.random() * 70);
+  }
+  if (stormMissileFlash > 0) stormMissileFlash--;
+
+  stormMissiles = stormMissiles.filter(m => {
+    m.x += m.vx; m.y += m.vy;
+    if (m.x < -30 || m.x > W + 30 || m.y < -30 || m.y > GROUND_Y + 10) return false;
+    const dx = m.x - heli.x, dy = m.y - heli.y;
+    if (Math.sqrt(dx*dx + dy*dy) < MSL_HIT_DIST * selectedModel.hitMult) {
+      mkSparks(m.x, m.y); mkSparks(m.x, m.y);
+      score = Math.max(0, score - 200);
+      sndHeliHit();
+      document.getElementById('hud-score').textContent = score.toLocaleString();
+      stormMissileFlash = 10;
+      return false;
+    }
+    return true;
+  });
+}
+
+function drawStormEffect() {
+  if (currentLevel !== 7) return;
+
+  // Static noise lines (turbulence visual)
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = 'rgba(0,255,65,0.045)';
+    ctx.fillRect(0, Math.random() * H | 0, W, 1 + (Math.random() * 2 | 0));
+  }
+
+  // Wind direction indicator (top-left corner)
+  if (windX !== 0 || windY !== 0) {
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.translate(28, 28);
+    ctx.strokeStyle = G1; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(windX * 7, windY * 7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fillStyle = G1; ctx.fill();
+    ctx.restore();
+  }
+
+  // Storm missiles
+  for (const m of stormMissiles) {
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.rotate(m.angle);
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = '#005a18'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(14, (Math.random()-0.5)*3); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = G1;
+    ctx.beginPath(); ctx.moveTo(-12,0); ctx.lineTo(4,-3); ctx.lineTo(4,3); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#aaffbb';
+    ctx.beginPath(); ctx.arc(-11, 0, 1.5, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  if (stormMissileFlash > 0) {
+    ctx.globalAlpha = (stormMissileFlash / 10) * 0.28;
+    ctx.fillStyle = G1; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ── Level 8: Minefield ───────────────────────────────────────────────────────
+const MINE_COUNT = 8;
+
+function mkMine() {
+  return {
+    x: W + 40 + Math.random() * 200,
+    y: GROUND_Y - 20 - Math.random() * (GROUND_Y * 0.6),
+    r: 12,
+    pulse: Math.random() * Math.PI * 2,
+    alive: true,
+  };
+}
+
+function seedMines() {
+  mines = []; mineFlashTimer = 0;
+  for (let i = 0; i < MINE_COUNT; i++) {
+    const m = mkMine();
+    m.x = W + 40 + i * 120;
+    mines.push(m);
+  }
+}
+
+function updateMines() {
+  if (currentLevel !== 8) { mines = []; return; }
+  const spd = SCROLL + (currentLevel - 1) * 0.5;
+
+  while (mines.length < MINE_COUNT) {
+    const last = mines[mines.length - 1];
+    const m = mkMine();
+    m.x = (last ? last.x : W) + 80 + Math.random() * 100;
+    mines.push(m);
+  }
+
+  if (mineFlashTimer > 0) mineFlashTimer--;
+
+  for (let i = mines.length - 1; i >= 0; i--) {
+    const m = mines[i];
+    m.x -= spd;
+    m.pulse += 0.08;
+    if (m.x + m.r < 0) { mines.splice(i, 1); continue; }
+
+    // Bomb hits mine — chain explosion + bonus points
+    for (let bi = bombs.length - 1; bi >= 0; bi--) {
+      const b = bombs[bi];
+      const dx = b.x - m.x, dy = b.y - m.y;
+      if (Math.sqrt(dx*dx + dy*dy) < m.r + 6) {
+        mkSparks(m.x, m.y); mkSparks(m.x, m.y); mkSparks(m.x, m.y);
+        score += 400;
+        sndBombHit();
+        document.getElementById('hud-score').textContent = score.toLocaleString();
+        mines.splice(i, 1);
+        bombs.splice(bi, 1);
+        break;
+      }
+    }
+    if (i >= mines.length) continue;
+
+    // Heli hits mine
+    const dx2 = heli.x - mines[i].x, dy2 = heli.y - mines[i].y;
+    if (Math.sqrt(dx2*dx2 + dy2*dy2) < mines[i].r + 20 * selectedModel.hitMult) {
+      mkSparks(mines[i].x, mines[i].y); mkSparks(mines[i].x, mines[i].y);
+      score = Math.max(0, score - 300);
+      sndCrash();
+      document.getElementById('hud-score').textContent = score.toLocaleString();
+      mineFlashTimer = 12;
+      mines.splice(i, 1);
+    }
+  }
+}
+
+function drawMines() {
+  if (currentLevel !== 8) return;
+  for (const m of mines) {
+    const glow = 0.5 + 0.5 * Math.sin(m.pulse);
+    // Outer warning ring
+    ctx.globalAlpha = 0.18 + glow * 0.14;
+    ctx.beginPath(); ctx.arc(m.x, m.y, m.r + 8, 0, Math.PI*2);
+    ctx.fillStyle = '#ff4400'; ctx.fill();
+    ctx.globalAlpha = 1;
+    // Mine body
+    ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2);
+    ctx.fillStyle = '#1a0000'; ctx.fill();
+    ctx.strokeStyle = '#ff4400'; ctx.lineWidth = 2; ctx.stroke();
+    // Spikes
+    ctx.strokeStyle = '#ff4400'; ctx.lineWidth = 1.5;
+    for (let a = 0; a < Math.PI*2; a += Math.PI/4) {
+      ctx.beginPath();
+      ctx.moveTo(m.x + Math.cos(a)*m.r, m.y + Math.sin(a)*m.r);
+      ctx.lineTo(m.x + Math.cos(a)*(m.r+6), m.y + Math.sin(a)*(m.r+6));
+      ctx.stroke();
+    }
+    // Blinking centre light
+    if (glow > 0.6) {
+      ctx.beginPath(); ctx.arc(m.x, m.y, 3, 0, Math.PI*2);
+      ctx.fillStyle = '#ff4400'; ctx.fill();
+    }
+  }
+  if (mineFlashTimer > 0) {
+    ctx.globalAlpha = (mineFlashTimer / 12) * 0.35;
+    ctx.fillStyle = '#ff4400'; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+}
+
+const keys = {};
+
+// -- Helicopter Models -----------------------------------------------
+const HELI_MODELS = [
+  { id:0, scale:0.72, speedMult:1.35, hitMult:0.72 },  // Scout - small & fast
+  { id:1, scale:1.0,  speedMult:1.0,  hitMult:1.0  },  // Assault - balanced
+  { id:2, scale:1.42, speedMult:0.7,  hitMult:1.42 },  // Gunship - big & slow
+];
+let selectedModel = HELI_MODELS[0];
+
+function selectHeli(idx) {
+  selectedModel = HELI_MODELS[idx];
+  document.querySelectorAll('.heli-card').forEach((el, i) => {
+    el.classList.toggle('selected', i === idx);
+  });
+}
+
+// Animated previews on splash screen
+let prevRotA = 0;
+function renderPreviews() {
+  const cfgs = [
+    { id:'prev-0', scale:0.72, cx:74,  cy:42 },
+    { id:'prev-1', scale:1.0,  cx:93,  cy:50 },
+    { id:'prev-2', scale:1.42, cx:114, cy:62 },
+  ];
+  prevRotA += 0.045;
+  for (const cfg of cfgs) {
+    const el = document.getElementById(cfg.id);
+    if (!el) continue;
+    const pc = el.getContext('2d');
+    pc.clearRect(0, 0, el.width, el.height);
+    drawHeliModel(pc, cfg.cx, cfg.cy, cfg.scale, prevRotA);
+  }
+  requestAnimationFrame(renderPreviews);
+}
+
+// â”€â”€ Building Factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Three distinct height profiles:
+//   SHORT      â€“ 3 layers, 18-28px each  â†’ total 54-84px
+//   MEDIUM     â€“ 3-4 layers, 32-52px ea  â†’ total 96-208px
+//   TALL       â€“ 5 layers, 52-76px each  â†’ total 260-380px
+function mkBuilding(startX) {
+  const roll = Math.random();
+  let nL, hLo, hHi, wBase;
+
+  if (roll < 0.28) {               // SHORT
+    nL = 3;  hLo = 9; hHi = 14;
+    wBase = 25 + Math.random() * 19 | 0;
+  } else if (roll < 0.65) {        // MEDIUM
+    nL = 3 + (Math.random() < 0.5 ? 1 : 0);
+    hLo = 16; hHi = 26;
+    wBase = 29 + Math.random() * 23 | 0;
+  } else {                         // TALL
+    nL = 5;  hLo = 26; hHi = 38;
+    wBase = 31 + Math.random() * 19 | 0;
+  }
+
+  const layers = [];
+  for (let i = 0; i < nL; i++) {
+    const h    = hLo + Math.random() * (hHi - hLo) | 0;
+    const w    = Math.max(14, wBase - i * 5);
+    const nWin = Math.max(1, (w - 6) / 8 | 0);
+    layers.push({ h, w, wins: Array.from({length: nWin}, () => Math.random() > 0.3) });
+  }
+  return { x: startX, baseW: wBase, layers };
+}
+
+function seedBuildings() {
+  buildings = [];
+  let x = 320;
+  for (let i = 0; i < 18; i++) {
+    const b = mkBuilding(x);
+    buildings.push(b);
+    x += b.baseW + 25 + (Math.random() * 33 | 0);
+  }
+}
+
+
+// ── Obstacles (Level 2) ──────────────────────────────────────────────────────
+const OBS_W    = 18;
+const OBS_GAP  = 110;
+const OBS_SPD  = 3.2;
+const OBS_WARN = 28;
+
+function mkObstacle() {
+  const playH  = GROUND_Y - 36;
+  const gapTop = 36 + Math.random() * (playH - OBS_GAP);
+  return { x: W + OBS_W, gapTop };
+}
+
+function spawnObstacleIfNeeded() {
+  if (currentLevel !== 2) return;
+  const last = obstacles[obstacles.length - 1];
+  if (!last || last.x < W - (280 + Math.random() * 100 | 0)) {
+    obstacles.push(mkObstacle());
+  }
+}
+
+function drawObstacles() {
+  if (currentLevel !== 2 || obstacles.length === 0) return;
+  for (const ob of obstacles) {
+    const gapBot = ob.gapTop + OBS_GAP;
+
+    // Warning glow
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = '#ff4400';
+    ctx.fillRect(ob.x - OBS_WARN, 0, OBS_WARN, ob.gapTop);
+    ctx.fillRect(ob.x - OBS_WARN, gapBot, OBS_WARN, GROUND_Y - gapBot);
+    ctx.globalAlpha = 1;
+
+    // Barrier fill
+    ctx.fillStyle = '#1a0000';
+    ctx.fillRect(ob.x, 0, OBS_W, ob.gapTop);
+    ctx.fillRect(ob.x, gapBot, OBS_W, GROUND_Y - gapBot);
+
+    // Barrier border
+    ctx.strokeStyle = '#ff4400';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(ob.x, 0, OBS_W, ob.gapTop);
+    ctx.strokeRect(ob.x, gapBot, OBS_W, GROUND_Y - gapBot);
+
+    // Chevrons
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 1.5;
+    const chevH = 16;
+    for (let cy = 4; cy < ob.gapTop - chevH; cy += chevH * 2) {
+      ctx.beginPath();
+      ctx.moveTo(ob.x + 2, cy + chevH);
+      ctx.lineTo(ob.x + OBS_W / 2, cy);
+      ctx.lineTo(ob.x + OBS_W - 2, cy + chevH);
+      ctx.stroke();
+    }
+    for (let cy = gapBot + 4; cy < GROUND_Y - chevH; cy += chevH * 2) {
+      ctx.beginPath();
+      ctx.moveTo(ob.x + 2, cy + chevH);
+      ctx.lineTo(ob.x + OBS_W / 2, cy);
+      ctx.lineTo(ob.x + OBS_W - 2, cy + chevH);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = G1;
+  }
+}
+
+function updateObstacles() {
+  if (currentLevel !== 2) return;
+  spawnObstacleIfNeeded();
+  obstacles = obstacles.filter(ob => {
+    ob.x -= OBS_SPD;
+    const hx1 = heli.x - 38*selectedModel.hitMult, hx2 = heli.x + 32*selectedModel.hitMult;
+    const hy1 = heli.y - 22*selectedModel.hitMult, hy2 = heli.y + 24*selectedModel.hitMult;
+    const gapBot = ob.gapTop + OBS_GAP;
+    const overlapX = hx2 > ob.x && hx1 < ob.x + OBS_W;
+    const hitsTop  = hy1 < ob.gapTop;
+    const hitsBot  = hy2 > gapBot;
+    if (overlapX && (hitsTop || hitsBot)) {
+      mkSparks(heli.x, heli.y);
+      mkSparks(heli.x, heli.y);
+      score = Math.max(0, score - 200);
+      sndHeliHit();
+      document.getElementById('hud-score').textContent = score.toLocaleString();
+      heli.x = 120;
+      heli.y = GROUND_Y / 2;
+    }
+    return ob.x + OBS_W > -10;
+  });
+}
+
+
+// ── Missiles (Level 3) ────────────────────────────────────────────
+// VAX green palette
+const MSL_GREEN    = '#00ff41';
+const MSL_DKGREEN  = '#005a18';
+const MSL_SPD      = 4.2;
+const MSL_HIT_DIST = 20;
+
+// Fixed launcher positions spread across the level (screen x positions, on ground)
+const LAUNCHER_POSITIONS = [
+  { x: 120,  cooldown: 0, interval: 180 + Math.floor(Math.random()*60) },
+  { x: 310,  cooldown: 60, interval: 160 + Math.floor(Math.random()*60) },
+  { x: 520,  cooldown: 120, interval: 190 + Math.floor(Math.random()*60) },
+  { x: 700,  cooldown: 30, interval: 170 + Math.floor(Math.random()*60) },
+  { x: 860,  cooldown: 90, interval: 155 + Math.floor(Math.random()*60) },
+];
+
+let missileFlashTimer = 0;
+
+function fireMissileFrom(launcher) {
+  // Aim directly at helicopter position at time of firing
+  const sx = launcher.x;
+  const sy = GROUND_Y - 22;
+  const dx = heli.x - sx;
+  const dy = heli.y - sy;
+  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+  const angle = Math.atan2(dy, dx);
+  missiles.push({
+    x: sx,
+    y: sy,
+    vx: (dx / dist) * MSL_SPD,
+    vy: (dy / dist) * MSL_SPD,
+    angle,
+    launchX: sx
+  });
+  sndMissileLaunch();
+}
+
+function drawLaunchers() {
+  if (currentLevel !== 3) return;
+  for (const launcher of LAUNCHER_POSITIONS) {
+    const bx = launcher.x;
+    const by = GROUND_Y;
+
+    // Aim barrel toward helicopter
+    const dx = heli.x - bx;
+    const dy = heli.y - (by - 20);
+    const aimAngle = Math.atan2(dy, dx);
+
+    // Base platform
+    ctx.fillStyle = MSL_DKGREEN;
+    ctx.fillRect(bx - 24, by - 10, 48, 10);
+    ctx.strokeStyle = MSL_GREEN;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx - 24, by - 10, 48, 10);
+
+    // Turret body
+    ctx.fillStyle = MSL_DKGREEN;
+    ctx.fillRect(bx - 12, by - 24, 24, 16);
+    ctx.strokeStyle = MSL_GREEN;
+    ctx.strokeRect(bx - 12, by - 24, 24, 16);
+
+    // Barrel — rotates to aim at helicopter
+    ctx.save();
+    ctx.translate(bx, by - 20);
+    ctx.rotate(aimAngle);
+    ctx.strokeStyle = MSL_GREEN;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(20, 0);
+    ctx.stroke();
+    // Barrel tip
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#aaffbb';
+    ctx.beginPath();
+    ctx.moveTo(20, 0); ctx.lineTo(26, 0);
+    ctx.stroke();
+    ctx.restore();
+
+    // Blinking ready light
+    if ((Date.now() / 400 | 0) % 2 === 0) {
+      ctx.fillStyle = MSL_GREEN;
+      ctx.beginPath();
+      ctx.arc(bx + 10, by - 16, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Wheels / treads
+    ctx.strokeStyle = MSL_GREEN;
+    ctx.lineWidth = 1;
+    for (const wx of [bx - 18, bx, bx + 18]) {
+      ctx.beginPath();
+      ctx.arc(wx, by - 1, 5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+}
+
+function drawMissiles() {
+  if (currentLevel !== 3) return;
+
+  // Draw all launchers first (behind missiles)
+  drawLaunchers();
+
+  for (const m of missiles) {
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.rotate(m.angle);
+
+    // Exhaust trail (faint green plume behind)
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = MSL_DKGREEN;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(16, (Math.random() - 0.5) * 3);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Body
+    ctx.fillStyle = MSL_GREEN;
+    ctx.beginPath();
+    ctx.moveTo(-12, 0);   // nose (points left = direction of travel since rotated)
+    ctx.lineTo(4, -3);
+    ctx.lineTo(4, 3);
+    ctx.closePath();
+    ctx.fill();
+
+    // Nose tip brighter
+    ctx.fillStyle = '#aaffbb';
+    ctx.beginPath();
+    ctx.arc(-11, 0, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Tail fins
+    ctx.fillStyle = MSL_DKGREEN;
+    ctx.strokeStyle = MSL_GREEN;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(4, -3); ctx.lineTo(10, -8); ctx.lineTo(7, -3);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(4, 3); ctx.lineTo(10, 8); ctx.lineTo(7, 3);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // Green flash on hit
+  if (missileFlashTimer > 0) {
+    ctx.globalAlpha = (missileFlashTimer / 10) * 0.28;
+    ctx.fillStyle = MSL_GREEN;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function updateMissiles() {
+  if (currentLevel !== 3) { missiles = []; return; }
+
+  // Tick each launcher's cooldown independently
+  for (const launcher of LAUNCHER_POSITIONS) {
+    launcher.cooldown--;
+    if (launcher.cooldown <= 0) {
+      fireMissileFrom(launcher);
+      launcher.cooldown = launcher.interval;
+    }
+  }
+
+  if (missileFlashTimer > 0) missileFlashTimer--;
+
+  missiles = missiles.filter(m => {
+    // Straight-line movement — no homing
+    m.x += m.vx;
+    m.y += m.vy;
+
+    // Cull when off-screen
+    if (m.x < -30 || m.x > W + 30 || m.y < -30 || m.y > GROUND_Y + 10) return false;
+
+    // Collision with heli (AABB-ish circle test)
+    const dx = m.x - heli.x;
+    const dy = m.y - heli.y;
+    if (Math.sqrt(dx * dx + dy * dy) < MSL_HIT_DIST * selectedModel.hitMult) {
+      mkSparks(m.x, m.y);
+      mkSparks(m.x, m.y);
+      score = Math.max(0, score - 200);
+      sndHeliHit();
+      document.getElementById('hud-score').textContent = score.toLocaleString();
+      missileFlashTimer = 10;
+      return false;
+    }
+
+    return true;
+  });
+}
+
+// â”€â”€ Input â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+document.addEventListener('keydown', e => {
+  if (!gameRunning) return;
+  if (keys[e.code]) return;
+  keys[e.code] = true;
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (currentLevel === 4 || currentLevel === 6) {
+      // Levels 4 + 6: fire forward missile
+      fireFwdMissile();
+    } else if (currentLevel === 5) {
+      // Level 5: fire cave missile
+      fireCaveMissile();
+    } else {
+      // Drop bomb(s)
+      const s = selectedModel.scale;
+      bombs.push({ x: heli.x + 6, y: heli.y + 13 * s });
+      // MH-60 Gunship fires a second bomb from the other hardpoint
+      if (selectedModel.id === 2) {
+        bombs.push({ x: heli.x - 18 * s, y: heli.y + 13 * s });
+      }
+      sndBombDrop();
+    }
+  }
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// -- drawHeliModel: draw heli onto any ctx at (cx,cy) with scale --------
+function drawHeliModel(ctx2d, cx, cy, scale, rotA) {
+  const s = scale;
+  ctx2d.strokeStyle = '#00ff41'; ctx2d.fillStyle = '#00ff41'; ctx2d.lineWidth = 1.5*s;
+  // rotor mast
+  ctx2d.beginPath(); ctx2d.moveTo(cx, cy-12*s); ctx2d.lineTo(cx, cy-22*s); ctx2d.stroke();
+  // main rotor
+  ctx2d.save(); ctx2d.translate(cx, cy-22*s); ctx2d.rotate(rotA);
+  ctx2d.lineWidth=2.5*s; ctx2d.beginPath(); ctx2d.moveTo(-58*s,0); ctx2d.lineTo(58*s,0); ctx2d.stroke();
+  ctx2d.restore();
+  // tail boom
+  ctx2d.fillStyle='#00ff41'; ctx2d.fillRect(cx-75*s, cy-3*s, 37*s, 7*s);
+  // tail fin
+  ctx2d.lineWidth=2*s; ctx2d.beginPath();
+  ctx2d.moveTo(cx-74*s, cy-18*s); ctx2d.lineTo(cx-74*s, cy+8*s); ctx2d.stroke();
+  // tail rotor
+  ctx2d.save(); ctx2d.translate(cx-74*s, cy-5*s); ctx2d.rotate(rotA*1.6);
+  ctx2d.lineWidth=1.5*s; ctx2d.beginPath(); ctx2d.moveTo(0,-12*s); ctx2d.lineTo(0,12*s); ctx2d.stroke();
+  ctx2d.restore();
+  // fuselage
+  ctx2d.fillStyle='#00ff41'; ctx2d.strokeStyle='#00ff41'; ctx2d.lineWidth=1*s;
+  ctx2d.fillRect(cx-38*s, cy-12*s, 76*s, 24*s);
+  // cockpit
+  ctx2d.fillStyle='#001f00'; ctx2d.strokeStyle='#00ff41'; ctx2d.lineWidth=1.5*s;
+  ctx2d.beginPath(); ctx2d.moveTo(cx+38*s,cy-12*s); ctx2d.lineTo(cx+64*s,cy+1*s); ctx2d.lineTo(cx+38*s,cy+12*s);
+  ctx2d.closePath(); ctx2d.fill(); ctx2d.stroke();
+  // cockpit window
+  ctx2d.fillStyle='#00ff41'; ctx2d.fillRect(cx+41*s, cy-4*s, 12*s, 7*s);
+  // skids
+  ctx2d.lineWidth=1.5*s; ctx2d.beginPath();
+  ctx2d.moveTo(cx-20*s,cy+12*s); ctx2d.lineTo(cx-20*s,cy+24*s);
+  ctx2d.moveTo(cx+12*s,cy+12*s); ctx2d.lineTo(cx+12*s,cy+24*s);
+  ctx2d.moveTo(cx-28*s,cy+24*s); ctx2d.lineTo(cx+22*s,cy+24*s);
+  ctx2d.stroke();
+}
+
+function drawHeli() { drawHeliModel(ctx, heli.x, heli.y, selectedModel.scale, rotorA); }
+
+// â”€â”€ Draw: Buildings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function drawBuildings() {
+  for (const b of buildings) {
+    const cx = b.x + b.baseW / 2;
+    let curY  = GROUND_Y;
+
+    for (const lay of b.layers) {
+      const lx = Math.round(cx - lay.w / 2);
+      const ly = curY - lay.h;
+
+      ctx.fillStyle = G2;
+      ctx.fillRect(lx, ly, lay.w, lay.h);
+      ctx.strokeStyle = G1;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(lx, ly, lay.w, lay.h);
+
+      // windows
+      const nw = lay.wins.length;
+      const wW = 4, wH = Math.min(5, lay.h - 4);
+      if (nw > 0 && wH > 1) {
+        const span = lay.w - 6;
+        const gap  = nw === 1 ? 0 : (span - wW) / (nw - 1);
+        for (let j = 0; j < nw; j++) {
+          const wx = lx + 3 + (nw === 1 ? (span - wW) / 2 : j * gap);
+          const wy = ly + (lay.h - wH) / 2;
+          ctx.fillStyle = lay.wins[j] ? G1 : '#001800';
+          ctx.fillRect(Math.round(wx), Math.round(wy), wW, wH);
+        }
+      }
+      curY -= lay.h;
+    }
+  }
+}
+
+// â”€â”€ Draw: Bombs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function drawBombs() {
+  ctx.fillStyle = G1;
+  for (const bm of bombs) {
+    ctx.save();
+    ctx.translate(bm.x, bm.y);
+    ctx.scale(0.5, 0.5);
+    ctx.translate(-bm.x, -bm.y);
+    // nose cone
+    ctx.beginPath();
+    ctx.moveTo(bm.x - 4, bm.y - 4); ctx.lineTo(bm.x, bm.y - 11);
+    ctx.lineTo(bm.x + 4, bm.y - 4); ctx.closePath(); ctx.fill();
+    // body
+    ctx.beginPath();
+    ctx.ellipse(bm.x, bm.y + 4, 4, 8, 0, 0, Math.PI * 2); ctx.fill();
+    // tail fins
+    ctx.beginPath();
+    ctx.moveTo(bm.x - 4, bm.y + 11);
+    ctx.lineTo(bm.x - 9, bm.y + 18);
+    ctx.lineTo(bm.x + 9, bm.y + 18);
+    ctx.lineTo(bm.x + 4, bm.y + 11);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+
+// â”€â”€ Draw: Sparks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function drawSparks() {
+  for (const s of sparks) {
+    ctx.globalAlpha = s.life / s.maxL;
+    ctx.strokeStyle = G1;
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(s.x + s.vx * 3, s.y + s.vy * 3);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// â”€â”€ Draw: Ground â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function drawGround() {
+  ctx.fillStyle = G3;
+  ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+  ctx.strokeStyle = G1;
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND_Y); ctx.lineTo(W, GROUND_Y); ctx.stroke();
+}
+
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function mkSparks(x, y) {
+  for (let i = 0; i < 24; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = 2 + Math.random() * 5.5;
+    sparks.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life: 24, maxL: 24 });
+  }
+}
+
+// Returns array of { i, x, y, w, h } for each layer of building b
+function layerRects(b) {
+  const cx = b.x + b.baseW / 2;
+  let curY  = GROUND_Y;
+  return b.layers.map((lay, i) => {
+    const r = { i, x: cx - lay.w / 2, y: curY - lay.h, w: lay.w, h: lay.h };
+    curY -= lay.h;
+    return r;
+  });
+}
+
+// â”€â”€ Timer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function fmtTime(s) {
+  return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+}
+
+function startTimer() {
+  timeLeft = LEVEL_DURATION;
+  const el = document.getElementById('hud-timer');
+  el.classList.remove('warn');
+  el.textContent = fmtTime(timeLeft);
+
+  timerTick = setInterval(() => {
+    timeLeft--;
+    el.textContent = fmtTime(timeLeft);
+    if (timeLeft <= 5) el.classList.add('warn');
+    else el.classList.remove('warn');
+    if (timeLeft <= 0) {
+      clearInterval(timerTick);
+      if (currentLevel < TOTAL_LEVELS) {
+        currentLevel++;
+        document.getElementById('hud-level-num').textContent = currentLevel;
+        showLevelTransition(currentLevel, true);
+      } else {
+        // Level 5 complete — award cave survival bonus if not crashed
+        if (currentLevel === 5 && !caveCrashed) {
+          score += 10000;
+          document.getElementById('hud-score').textContent = score.toLocaleString();
+          caveBonusActive = true;
+          sndCaveBonus();
+          setTimeout(() => endGame(), 3500);
+        } else {
+          endGame();
+        }
+      }
+    }
+  }, 1000);
+}
+
+function showLevelTransition(level, isNext) {
+  clearInterval(timerTick);
+  gameRunning = false;
+  if (rafId) cancelAnimationFrame(rafId);
+
+  const lt = document.getElementById('level-transition');
+  obstacles = [];  // clear obstacles between levels
+  missiles  = [];
+  balloons  = [];
+  fwdMissiles = [];
+  enemyHelis = [];
+  stormMissiles = [];
+  mines = [];
+  if (level === 4) seedBalloons();
+  if (level === 5) seedCave();
+  if (level === 6) seedEnemyHelis();
+  if (level === 7) seedStorm();
+  if (level === 8) seedMines();
+  missileFlashTimer = 0;
+  for (const l of LAUNCHER_POSITIONS) { l.cooldown = 90 + Math.floor(Math.random()*120); }
+  document.getElementById('lt-num').textContent = level;
+  document.getElementById('lt-label').textContent = 'LEVEL';
+  const levelHints = {
+    1: 'BOMB THE BUILDINGS',
+    2: 'AVOID THE BARRIERS — -200 PTS PER HIT',
+    3: 'INCOMING MISSILES — DODGE OR LOSE 200 PTS',
+    4: 'SHOOT THE BALLOONS — SPACE TO FIRE',
+    5: 'NAVIGATE THE CAVE — SHOOT TO CLEAR A PATH',
+    6: 'ENEMY HELIS INCOMING — SHOOT THEM DOWN FOR +300',
+    7: 'STORM INCOMING — TURBULENCE + MISSILES',
+    8: 'MINEFIELD — BOMB THE MINES FOR +400, AVOID THEM'
+  };
+  document.getElementById('lt-sub').textContent = isNext
+    ? (levelHints[level] || 'GET READY')
+    : 'MISSION START — GO GO GO';
+
+  lt.classList.add('show');
+  sndLevelStart(level);
+
+  setTimeout(() => {
+    lt.classList.remove('show');
+    gameRunning = true;
+    startTimer();
+    loop();
+  }, 2200);
+}
+
+// â”€â”€ Update â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function update() {
+  rotorA += 0.27;
+
+  // Helicopter movement â€“ all 4 directions
+  if (keys['ArrowUp']    || keys['KeyW'])
+      heli.y = Math.max(36, heli.y - (HELI_SPD * selectedModel.speedMult));
+  if (keys['ArrowDown']  || keys['KeyS'])
+      heli.y = Math.min(GROUND_Y - 30, heli.y + (HELI_SPD * selectedModel.speedMult));
+  if (keys['ArrowRight'] || keys['KeyD'])
+      heli.x = Math.min(W - 45, heli.x + (HELI_SPD * selectedModel.speedMult));
+  if (keys['ArrowLeft']  || keys['KeyA'])
+      heli.x = Math.max(45, heli.x - (HELI_SPD * selectedModel.speedMult));
+
+  // Level 5: clamp heli to cave profile
+  if (currentLevel === 5) {
+    const { ceil: cc, floor: cf } = caveProfile(caveScrollX);
+    const hs = selectedModel.scale;
+    heli.y = Math.max(cc + 22 * hs + 2, Math.min(cf - 24 * hs - 2, heli.y));
+  }
+
+  // Scroll world speed: moving right speeds up, moving left slows down
+  let spd = SCROLL + (currentLevel - 1) * 0.5;
+  if (keys['ArrowRight'] || keys['KeyD']) spd += 1.8;
+  if (keys['ArrowLeft']  || keys['KeyA']) spd  = Math.max(0.4, spd - 1.2);
+
+  for (const b of buildings) b.x -= spd;
+
+  // Cull off-left
+  buildings = buildings.filter(b => b.x + b.baseW > -10);
+
+  // Spawn from right
+  const last = buildings[buildings.length - 1];
+  if (!last || last.x + last.baseW < W + 120) {
+    const nx = (last ? last.x + last.baseW : W + 60) + 26 + (Math.random() * 34 | 0);
+    buildings.push(mkBuilding(nx));
+  }
+
+  // Bombs
+  bombs = bombs.filter(bm => {
+    bm.y += BOMB_SPD;
+    if (bm.y > GROUND_Y + 10) { mkSparks(bm.x, GROUND_Y - 2); return false; }
+
+    for (const b of buildings) {
+      if (bm.x < b.x - 3 || bm.x > b.x + b.baseW + 3) continue;
+      for (const r of layerRects(b)) {
+        if (bm.x >= r.x && bm.x <= r.x + r.w &&
+            bm.y >= r.y && bm.y <= r.y + r.h) {
+          mkSparks(bm.x, bm.y);
+          b.layers.splice(r.i, 1);
+          score += 100;
+          sndBombHit();
+          document.getElementById('hud-score').textContent = score.toLocaleString();
+          return false;
+        }
+      }
+    }
+    return true;
+  });
+
+  // Obstacles
+  updateObstacles();
+  updateMissiles();
+  updateBalloons();
+  updateCave();
+  updateEnemyHelis();
+  updateStorm();
+  updateMines();
+
+  // Sparks
+  sparks = sparks.filter(s => {
+    s.x += s.vx; s.y += s.vy; s.vy += 0.18;
+    return --s.life > 0;
+  });
+}
+
+// â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function render() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  const isCityLevel = currentLevel !== 4 && currentLevel !== 5;
+  if (isCityLevel) drawGround();
+  drawMissiles();
+  if (isCityLevel) drawBuildings();
+  drawObstacles();
+  if (isCityLevel) drawBombs();
+  drawBalloons();
+  drawCave();
+  drawMines();
+  drawEnemyHelis();
+  drawStormEffect();
+  drawSparks();
+  drawHeli();
+}
+
+// â”€â”€ Game Loop â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function loop() {
+  if (!gameRunning) return;
+  update();
+  render();
+  rafId = requestAnimationFrame(loop);
+}
+
+// â”€â”€ Start / End â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function startGame() {
+  score        = 0;
+  currentLevel = 1;
+  bombs        = [];
+  sparks       = [];
+  obstacles    = [];
+  missiles     = [];
+  balloons        = [];
+  fwdMissiles     = [];
+  caveFormations  = [];
+  caveFwdMissiles = [];
+  caveCrashed      = false;
+  caveGameOverTimer = 0;
+  caveGameOverAlpha = 0;
+  caveBonusActive   = false;
+  caveBonusAlpha    = 0;
+  missileFlashTimer = 0;
+  enemyHelis        = [];
+  windX = 0; windY = 0; windTimer = 0;
+  stormMissiles = []; stormMissileTimer = 100; stormMissileFlash = 0;
+  mines = []; mineFlashTimer = 0;
+  for (const l of LAUNCHER_POSITIONS) { l.cooldown = 90 + Math.floor(Math.random()*120); }
+  heli.x       = 210;
+  heli.y       = 230;
+  gameRunning  = false;
+
+  seedBuildings();
+  document.getElementById('hud-name').textContent      = playerName;
+  document.getElementById('hud-score').textContent     = '0';
+  document.getElementById('hud-level-num').textContent = currentLevel;
+
+  // Clear any held keys from splash interaction
+  for (const k in keys) delete keys[k];
+
+  showScreen('game');
+  showLevelTransition(currentLevel, false);
+}
+
+function endGame() {
+  clearInterval(timerTick);
+  gameRunning = false;
+  if (rafId) cancelAnimationFrame(rafId);
+
+  saveScore(playerName, score).then(updated => {
+    const rank = updated.findIndex(s =>
+      s.name === (playerName.toUpperCase().trim() || 'ACE') && s.score === score);
+    document.getElementById('go-score-val').textContent = score.toLocaleString();
+    const rankEl = document.getElementById('go-rank-msg');
+    if (rank === 0)      rankEl.textContent = '★  NEW HIGH SCORE!  ★';
+    else if (rank >= 0)  rankEl.textContent = `LEADERBOARD RANK:  #${rank + 1}`;
+    else                 rankEl.textContent = '';
+
+    renderScores('go-scores-list', updated, playerName);
+    showScreen('gameover');
+  });
+}
+
+// â”€â”€ UI Wiring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+document.getElementById('start-btn').addEventListener('click', () => {
+  const raw = document.getElementById('player-name').value.trim();
+  playerName = (raw || 'ACE').toUpperCase().slice(0, 12);
+  startGame();
+});
+
+document.getElementById('player-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('start-btn').click();
+});
+
+document.getElementById('restart-btn').addEventListener('click', () => {
+  showScreen('splash');
+  initScores().then(() => {
+    renderScores('splash-scores-list', loadScores(), playerName);
+  });
+  setTimeout(() => document.getElementById('player-name').focus(), 50);
+});
+
+// â”€â”€ Boot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+showScreen('splash');
+renderScores('splash-scores-list', []); // render empty immediately
+document.getElementById('player-name').focus();
+renderPreviews();
+// Load persisted scores then refresh the leaderboard display
+initScores().then(() => {
+  renderScores('splash-scores-list', loadScores());
+});
+
+// ── Touch controls ────────────────────────────────────────────────────────────
+(function () {
+  if (!('ontouchstart' in window || navigator.maxTouchPoints > 0)) return;
+  document.documentElement.classList.add('touch-active');
+
+  function bindDir(id, code) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('touchstart', e => {
+      e.preventDefault(); keys[code] = true; el.classList.add('held');
+    }, { passive: false });
+    const release = e => { e.preventDefault(); keys[code] = false; el.classList.remove('held'); };
+    el.addEventListener('touchend',   release, { passive: false });
+    el.addEventListener('touchcancel', () => { keys[code] = false; el.classList.remove('held'); });
+  }
+  bindDir('dp-up',    'ArrowUp');
+  bindDir('dp-down',  'ArrowDown');
+  bindDir('dp-left',  'ArrowLeft');
+  bindDir('dp-right', 'ArrowRight');
+
+  const fireBtn = document.getElementById('fire-btn');
+  if (fireBtn) {
+    fireBtn.addEventListener('touchstart', e => {
+      e.preventDefault();
+      if (!gameRunning) return;
+      fireBtn.classList.add('held');
+      if (currentLevel === 4 || currentLevel === 6) {
+        fireFwdMissile();
+      } else if (currentLevel === 5) {
+        fireCaveMissile();
+      } else {
+        const s = selectedModel.scale;
+        bombs.push({ x: heli.x + 6, y: heli.y + 13 * s });
+        if (selectedModel.id === 2) bombs.push({ x: heli.x - 18 * s, y: heli.y + 13 * s });
+        sndBombDrop();
+      }
+    }, { passive: false });
+    fireBtn.addEventListener('touchend',   e => { e.preventDefault(); fireBtn.classList.remove('held'); }, { passive: false });
+    fireBtn.addEventListener('touchcancel', () => fireBtn.classList.remove('held'));
+  }
+})();
+
+// ── PWA: register service worker ─────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

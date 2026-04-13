@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#000000"/>
+  <circle cx="256" cy="270" r="190" fill="none" stroke="#00ff41" stroke-width="1" opacity="0.12"/>
+
+  <!-- Main rotor -->
+  <line x1="72" y1="188" x2="440" y2="188" stroke="#00ff41" stroke-width="14" stroke-linecap="round"/>
+  <!-- Rotor mast -->
+  <line x1="256" y1="188" x2="256" y2="228" stroke="#00ff41" stroke-width="10"/>
+
+  <!-- Fuselage -->
+  <rect x="138" y="228" width="214" height="72" fill="#00ff41" rx="6"/>
+
+  <!-- Cockpit bubble (right / front) -->
+  <polygon points="352,228 428,264 352,300" fill="#001f00" stroke="#00ff41" stroke-width="5"/>
+  <!-- Cockpit window -->
+  <rect x="360" y="246" width="38" height="24" fill="#00ff41" rx="2"/>
+
+  <!-- Tail boom -->
+  <rect x="72" y="248" width="68" height="20" fill="#00ff41"/>
+  <!-- Tail vertical fin -->
+  <line x1="76" y1="216" x2="76" y2="294" stroke="#00ff41" stroke-width="9" stroke-linecap="round"/>
+  <!-- Tail rotor -->
+  <line x1="76" y1="236" x2="76" y2="278" stroke="#00ff41" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Landing skids -->
+  <line x1="172" y1="300" x2="172" y2="326" stroke="#00ff41" stroke-width="7"/>
+  <line x1="296" y1="300" x2="296" y2="326" stroke="#00ff41" stroke-width="7"/>
+  <line x1="148" y1="326" x2="322" y2="326" stroke="#00ff41" stroke-width="9" stroke-linecap="round"/>
+
+  <!-- Bottom glow text -->
+  <text x="256" y="400" font-family="monospace" font-size="36" font-weight="bold"
+        fill="#005a18" text-anchor="middle" letter-spacing="8">HELI BOMBER</text>
+  <text x="256" y="396" font-family="monospace" font-size="36" font-weight="bold"
+        fill="#00ff41" text-anchor="middle" letter-spacing="8">HELI BOMBER</text>
+</svg>

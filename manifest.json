@@ -1,0 +1,19 @@
+{
+  "name": "HELI BOMBER",
+  "short_name": "HELI BOMBER",
+  "description": "Urban Air Assault Simulator — 5 levels of aerial combat",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
