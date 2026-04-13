@@ -2134,19 +2134,19 @@ function drawHeliModel(ctx2d, cx, cy, scale, rotA) {
   ctx2d.fillStyle = '#aaffbb';
   ctx2d.beginPath(); ctx2d.arc(cx, cy-22*s, 3*s, 0, Math.PI*2); ctx2d.fill();
 
-  // Main rotor blades — motion blur (ghost blades at trailing angles)
-  for (let ghost = 3; ghost >= 0; ghost--) {
-    const ga = rotA - ghost * 0.22;
+  // Main rotor blades — horizontal cross, blur via opacity layers
+  const rotorPulse = 0.65 + 0.25 * Math.sin(rotA * 8);
+  for (let ghost = 2; ghost >= 0; ghost--) {
     ctx2d.save();
-    ctx2d.translate(cx, cy-22*s); ctx2d.rotate(ga);
-    ctx2d.globalAlpha = ghost === 0 ? 0.9 : 0.1 * (4 - ghost);
+    ctx2d.translate(cx, cy-22*s);
+    ctx2d.globalAlpha = ghost === 0 ? rotorPulse : 0.15 * (3 - ghost);
     ctx2d.strokeStyle = '#00ff41';
-    ctx2d.lineWidth = ghost === 0 ? 3.5*s : 2.5*s;
+    ctx2d.lineWidth = ghost === 0 ? 3.5*s : 2*s;
     ctx2d.lineCap = 'round';
-    // Blade 1
+    // Blade 1 — horizontal
     ctx2d.beginPath(); ctx2d.moveTo(-58*s, 0); ctx2d.lineTo(58*s, 0); ctx2d.stroke();
-    // Blade 2 (perpendicular)
-    ctx2d.rotate(Math.PI / 2);
+    // Blade 2 — fore-aft (slight angle for 4-blade look)
+    ctx2d.rotate(Math.PI * 0.12);
     ctx2d.beginPath(); ctx2d.moveTo(-58*s, 0); ctx2d.lineTo(58*s, 0); ctx2d.stroke();
     ctx2d.restore();
   }
@@ -2775,18 +2775,10 @@ function update() {
 
 // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function render() {
-  // Screen shake
-  if (shakeMag > 0) {
-    shakeX = (Math.random() - 0.5) * shakeMag * 2;
-    shakeY = (Math.random() - 0.5) * shakeMag * 2;
-    shakeMag = Math.max(0, shakeMag - 1.1);
-  } else { shakeX = 0; shakeY = 0; }
-
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, H);
 
   ctx.save();
-  ctx.translate(shakeX, shakeY);
 
   drawBackground();
 
