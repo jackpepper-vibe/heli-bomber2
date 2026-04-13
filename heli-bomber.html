@@ -431,7 +431,7 @@
     <div class="name-lbl">&#9658; ENTER CALLSIGN &#9668;</div>
     <input id="player-name" type="text" maxlength="12"
            placeholder="ACE" autocomplete="off" spellcheck="false">
-    <button id="start-btn">[ SELECT AIRCRAFT ]</button>
+    <button id="start-btn" onclick="document.getElementById('splash').style.display='none'; document.getElementById('heli-select').style.display='flex'; document.documentElement.classList.remove('in-game');">[ SELECT AIRCRAFT ]</button>
   </div>
 </div>
 
