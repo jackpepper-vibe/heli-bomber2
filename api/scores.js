@@ -1,8 +1,8 @@
-// Global leaderboard — stores top 10 scores in Upstash Redis
-// Env vars required: UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
+// Global leaderboard — stores top 10 scores in Vercel KV (Redis)
+// Env vars set automatically when you connect a Vercel KV database
 
-const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
-const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const REDIS_URL   = process.env.KV_REST_API_URL   || process.env.UPSTASH_REDIS_REST_URL;
+const REDIS_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 const SCORE_KEY   = 'heli-bomber-scores';
 
 async function redisGet(key) {
