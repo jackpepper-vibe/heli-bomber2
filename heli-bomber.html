@@ -1880,7 +1880,7 @@ function mkBuilding(startX) {
     hasAntenna:    isTall && Math.random() > 0.40,
     hasWaterTower: isTall && Math.random() > 0.55,
     hasNeon:       Math.random() > 0.65,
-    hp: 2, damaged: false, crackSeed: Math.random(),
+    hp: nL, totalLayers: nL, damaged: false, crackSeed: Math.random(),
   };
 }
 
@@ -3229,10 +3229,12 @@ function update() {
           b.hp--;
           levelHits++;
           // Points per type
+          // Buildings: each layer hit = 80pts; collapse bonus = 150 * totalLayers
           const collapseBase = b.type === 'fuel'   ? 400 :
                                b.type === 'radar'  ? 350 :
-                               b.type === 'bunker' ? 600 : 250;
-          const damageBase   = b.type === 'bunker' ? 150 : 100;
+                               b.type === 'bunker' ? 600 :
+                               /* building */        150 * (b.totalLayers || b.layers.length + 1);
+          const damageBase   = b.type === 'bunker' ? 150 : 80;
           if (b.hp <= 0) {
             // Full collapse — big explosion on each remaining layer
             const rects = layerRects(b);
@@ -3241,10 +3243,17 @@ function update() {
             buildings.splice(bi, 1);
             const pts = collapseBase * mult;
             score += pts;
-            const label = b.type !== 'building' ? `${b.type.toUpperCase()}! +${pts}` : (mult > 1 ? `COMBO x${mult}! +${pts}` : `+${pts}`);
-            addScorePopup(bm.x, bm.y - 10, label, mult > 1 || b.type !== 'building' ? '#ffff44' : '#00ff41');
+            let label;
+            if (b.type !== 'building') {
+              label = `${b.type.toUpperCase()}! +${pts}`;
+            } else if (mult > 1) {
+              label = `RAZED! COMBO x${mult}! +${pts}`;
+            } else {
+              label = `RAZED! +${pts}`;
+            }
+            addScorePopup(bm.x, bm.y - 10, label, b.type !== 'building' ? '#ffff44' : '#ff9900');
           } else {
-            // First hit — damage state
+            // Hit — remove the struck layer, show progressive damage
             b.damaged = true;
             b.shade = '#0a0a00';
             b.layers.splice(r.i, 1); // remove hit layer
