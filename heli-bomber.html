@@ -193,6 +193,10 @@
 
     #hud-level { letter-spacing: 2px; font-size: 13px; }
 
+    #hud-bombs-wrap { letter-spacing: 2px; }
+    #hud-bombs-wrap.warn  { color: #ff8800; }
+    #hud-bombs-wrap.empty { color: #ff2200; animation: timerBlink 0.4s step-end infinite; }
+
     /* ── LEVEL TRANSITION */
     #level-transition {
       display: none;
@@ -482,6 +486,7 @@
     <span>PILOT: <strong id="hud-name">ACE</strong></span>
     <span id="hud-level">LVL <strong id="hud-level-num">1</strong> / 8</span>
     <span id="hud-timer">----m</span>
+    <span id="hud-bombs-wrap">BOMBS: <strong id="hud-bombs">12</strong></span>
     <span>SCORE: <strong id="hud-score">0</strong></span>
   </div>
   <div id="wrap">
@@ -799,7 +804,11 @@ let rotorA      = 0;
 const heli = { x: 210, y: 230 };
 const HELI_SPD  = 3.5;
 const BOMB_SPD  = 3.5;
-const SCROLL    = 2.2;   // base world scroll speed (px/frame)
+const SCROLL    = 1.4;   // base world scroll speed (px/frame)
+
+// bombs available per level (index = level number; 0 = missile/cave level, no bomb limit shown)
+const BOMBS_PER_LEVEL = [0, 12, 12, 10, 0, 0, 0, 10, 9];
+let bombsLeft = 12;
 
 let buildings = [], bombs = [], sparks = [], obstacles = [], missiles = [];
 
@@ -2162,14 +2171,17 @@ document.addEventListener('keydown', e => {
       // Level 5: fire cave missile
       fireCaveMissile();
     } else {
-      // Drop bomb(s)
-      const s = selectedModel.scale;
-      bombs.push({ x: heli.x + 6, y: heli.y + 13 * s });
-      // MH-60 Gunship fires a second bomb from the other hardpoint
-      if (selectedModel.id === 2) {
-        bombs.push({ x: heli.x - 18 * s, y: heli.y + 13 * s });
+      // Drop bomb(s) — enforce bomb limit
+      if (bombsLeft > 0) {
+        const s = selectedModel.scale;
+        bombs.push({ x: heli.x + 6, y: heli.y + 13 * s });
+        if (selectedModel.id === 2) {
+          bombs.push({ x: heli.x - 18 * s, y: heli.y + 13 * s });
+        }
+        bombsLeft--;
+        updateBombHUD();
+        sndBombDrop();
       }
-      sndBombDrop();
     }
   }
 });
@@ -3002,6 +3014,20 @@ function fmtTime(s) {
   return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
 }
 
+function updateBombHUD() {
+  const wrap = document.getElementById('hud-bombs-wrap');
+  const el   = document.getElementById('hud-bombs');
+  const limit = BOMBS_PER_LEVEL[currentLevel] || 0;
+  if (limit === 0) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = '';
+  el.textContent = bombsLeft;
+  wrap.classList.toggle('warn',  bombsLeft > 0 && bombsLeft <= 3);
+  wrap.classList.toggle('empty', bombsLeft === 0);
+}
+
 function startLevel() {
   finishLineX    = W + LEVEL_DIST;
   levelDone      = false;
@@ -3011,7 +3037,9 @@ function startLevel() {
   comboTimer     = 0;
   debris         = [];
   scorePopups    = [];
+  bombsLeft      = BOMBS_PER_LEVEL[currentLevel] || 12;
   document.getElementById('hud-timer').textContent = LEVEL_DIST + 'm';
+  updateBombHUD();
 }
 
 function handleLevelComplete() {
@@ -3313,6 +3341,7 @@ function startGame() {
   comboCount = 0; comboTimer = 0;
   levelStartScore = 0; levelHits = 0;
   fanfareFlash = 0;
+  bombsLeft = BOMBS_PER_LEVEL[currentLevel] || 12;
   bgScrollX = 0;
   finishLineX = W + LEVEL_DIST;
   levelDone = false;
@@ -3430,10 +3459,14 @@ initScores().then(() => {
       } else if (currentLevel === 5) {
         fireCaveMissile();
       } else {
-        const s = selectedModel.scale;
-        bombs.push({ x: heli.x + 6, y: heli.y + 13 * s });
-        if (selectedModel.id === 2) bombs.push({ x: heli.x - 18 * s, y: heli.y + 13 * s });
-        sndBombDrop();
+        if (bombsLeft > 0) {
+          const s = selectedModel.scale;
+          bombs.push({ x: heli.x + 6, y: heli.y + 13 * s });
+          if (selectedModel.id === 2) bombs.push({ x: heli.x - 18 * s, y: heli.y + 13 * s });
+          bombsLeft--;
+          updateBombHUD();
+          sndBombDrop();
+        }
       }
     }, { passive: false });
     fireBtn.addEventListener('touchend',   e => { e.preventDefault(); fireBtn.classList.remove('held'); }, { passive: false });
