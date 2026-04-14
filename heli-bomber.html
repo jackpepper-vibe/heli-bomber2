@@ -154,12 +154,19 @@
 
     #hud {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
+      gap: 2px 10px;
       width: 920px;
       max-width: 96vw;
       font-size: 13px;
       letter-spacing: 2px;
+    }
+
+    @media (max-width: 500px) {
+      #hud { font-size: 10px; letter-spacing: 1px; gap: 1px 6px; }
+      #hud-timer { font-size: 11px !important; letter-spacing: 2px !important; }
     }
 
     #hud-timer {
@@ -191,9 +198,10 @@
 
     /* â”€â”€ GAME OVER OVERLAY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
+    #hud > span { white-space: nowrap; }
     #hud-level { letter-spacing: 2px; font-size: 13px; }
 
-    #hud-bombs-wrap { letter-spacing: 2px; }
+    #hud-bombs-wrap { letter-spacing: 1px; white-space: nowrap; }
     #hud-bombs-wrap.warn  { color: #ff8800; }
     #hud-bombs-wrap.empty { color: #ff2200; animation: timerBlink 0.4s step-end infinite; }
 
