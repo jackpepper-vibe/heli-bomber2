@@ -351,6 +351,37 @@
       height: auto !important;
     }
 
+    /* ── Landscape: HUD overlays canvas so canvas can fill full height ─────── */
+    @media (orientation: landscape) {
+      body { align-items: center; }
+
+      #game-screen { position: relative; }
+
+      #hud {
+        position: absolute;
+        top: 4px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 20;
+        background: rgba(0,0,0,0.55);
+        padding: 3px 10px;
+        border-radius: 3px;
+        width: auto;
+        max-width: 98vw;
+        font-size: 11px;
+        letter-spacing: 1px;
+        gap: 0 10px;
+        flex-wrap: nowrap;
+      }
+
+      #hud-timer { font-size: 12px !important; letter-spacing: 2px !important; }
+
+      canvas {
+        max-height: 100vh !important;
+        max-width: calc(100vw - 4px) !important;
+      }
+    }
+
     /* ── Portrait lock ──────────────────────────────────────────────────────── */
     #portrait-lock {
       display: none;
