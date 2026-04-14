@@ -351,6 +351,16 @@
       height: auto !important;
     }
 
+    /* ── Desktop: scale canvas up to fill the window ───────────────────────── */
+    @media (min-width: 900px) and (min-height: 600px) {
+      canvas {
+        height: calc(100vh - 70px) !important;
+        width: auto !important;
+        max-height: calc(100vh - 70px) !important;
+        max-width: calc(100vw - 20px) !important;
+      }
+    }
+
     /* ── Landscape: HUD overlays canvas so canvas can fill full height ─────── */
     @media (orientation: landscape) and (max-height: 500px) {
       body { align-items: center; }
@@ -589,23 +599,51 @@ const G3 = '#004a00';   // ground strip
 const GROUND_Y = H - 42;
 
 // ── Audio Engine ──────────────────────────────────────────────────────────────
-// Create the context immediately. On iOS it starts 'suspended' — that's fine,
-// we resume it on the first user gesture and it stays running.
+// iOS requires the AudioContext to be created/resumed SYNCHRONOUSLY inside a
+// user gesture, plus a silent-buffer play to fully unlock the audio hardware.
 let audioCtx = null;
-try {
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-} catch(e) {}
+let audioUnlocked = false;
 
-function getAudio() { return audioCtx; }
-
-// Resume on every touch/click so iOS backgrounding never permanently kills audio
-function _unlockAudio() {
-  if (audioCtx && audioCtx.state !== 'running') {
+function getAudio() {
+  // If we have a running context, just return it.
+  if (audioCtx && audioCtx.state === 'running') return audioCtx;
+  // Nudge a suspended context back (e.g. after iOS backgrounding).
+  if (audioCtx && audioCtx.state === 'suspended') {
     audioCtx.resume().catch(() => {});
   }
+  return audioCtx;
 }
-document.addEventListener('touchend', _unlockAudio, false);
-document.addEventListener('click',    _unlockAudio, false);
+
+function _unlockAudio() {
+  try {
+    // Create the context inside the gesture — critical for iOS Safari.
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      audioCtx = new AC();
+    }
+    // Resume synchronously (must happen in the gesture handler).
+    if (audioCtx.state !== 'running') {
+      audioCtx.resume().catch(() => {});
+    }
+    // Play a silent buffer to fully unlock iOS audio output.
+    if (!audioUnlocked) {
+      const buf = audioCtx.createBuffer(1, 1, 22050);
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(audioCtx.destination);
+      if (typeof src.start === 'function') src.start(0);
+      else if (typeof src.noteOn === 'function') src.noteOn(0);
+      audioUnlocked = true;
+    }
+  } catch(e) {}
+}
+
+// Listen for the earliest-firing gesture events. touchstart fires before
+// touchend/click on iOS, so it's the most reliable unlock point.
+['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(ev => {
+  document.addEventListener(ev, _unlockAudio, { passive: true, capture: true });
+});
 
 // Generic synth helper
 function playTone({ freq = 440, type = 'sine', gain = 0.4, dur = 0.3,
