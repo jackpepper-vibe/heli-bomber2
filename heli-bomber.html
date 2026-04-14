@@ -387,16 +387,15 @@
     /* ── Touch controls ─────────────────────────────────────────────────────── */
     #touch-hud {
       display: none;
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      height: 150px;
+      position: absolute;
+      inset: 0;
       pointer-events: none;
       z-index: 50;
     }
     .touch-active.in-game #touch-hud { display: block; }
     #dpad {
       position: absolute;
-      left: 16px; bottom: 14px;
+      left: 12px; bottom: 12px;
       width: 136px; height: 136px;
       pointer-events: all;
     }
@@ -419,7 +418,7 @@
     #dp-right { right: 0;   top: 47px; }
     #fire-btn {
       position: absolute;
-      right: 20px; bottom: 18px;
+      right: 14px; bottom: 14px;
       width: 90px; height: 90px;
       background: rgba(0,255,65,0.10);
       border: 2px solid rgba(0,255,65,0.4);
@@ -443,17 +442,6 @@
 <div id="portrait-lock">
   <div class="pl-arrow">&#8635;</div>
   <div class="pl-msg">ROTATE DEVICE<br><span>TO LANDSCAPE</span></div>
-</div>
-
-<!-- Touch controls (shown on touch devices during gameplay) -->
-<div id="touch-hud">
-  <div id="dpad">
-    <div class="dp" id="dp-up">&#9650;</div>
-    <div class="dp" id="dp-left">&#9664;</div>
-    <div class="dp" id="dp-right">&#9654;</div>
-    <div class="dp" id="dp-down">&#9660;</div>
-  </div>
-  <div id="fire-btn">FIRE</div>
 </div>
 
 <!-- SPLASH: scoreboard + callsign -->
@@ -523,6 +511,15 @@
   <div id="wrap">
     <canvas id="c"></canvas>
     <div id="scan"></div>
+    <div id="touch-hud">
+      <div id="dpad">
+        <div class="dp" id="dp-up">&#9650;</div>
+        <div class="dp" id="dp-left">&#9664;</div>
+        <div class="dp" id="dp-right">&#9654;</div>
+        <div class="dp" id="dp-down">&#9660;</div>
+      </div>
+      <div id="fire-btn">FIRE</div>
+    </div>
   </div>
 </div>
 
