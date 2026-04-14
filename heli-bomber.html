@@ -743,6 +743,12 @@ function sndMissileLaunch() {
              dur: 0.28, attack: 0.01, decay: 0.01 });
 }
 
+function sndPowerUp() {
+  // Cheery ascending chime
+  playTone({ freq: 520, freqEnd: 880,  type: 'triangle', gain: 0.35, dur: 0.14, attack: 0.003, decay: 0.02 });
+  setTimeout(() => playTone({ freq: 880, freqEnd: 1320, type: 'triangle', gain: 0.3, dur: 0.18, attack: 0.003, decay: 0.02 }), 90);
+}
+
 
 function sndCrash() {
   // Layer 1: brutal low-end impact thud
@@ -905,7 +911,7 @@ let playerName  = 'ACE';
 let score       = 0;
 let timeLeft    = 20;
 let currentLevel = 1;
-const TOTAL_LEVELS = 8;
+const TOTAL_LEVELS = 9;
 const LEVEL_DURATION = 20;
 let timerTick   = null;
 let gameRunning = false;
@@ -918,10 +924,25 @@ const BOMB_SPD  = 3.5;
 const SCROLL    = 1.4;   // base world scroll speed (px/frame)
 
 // bombs available per level (index = level number; 0 = missile/cave level, no bomb limit shown)
-const BOMBS_PER_LEVEL = [0, 96, 96, 80, 0, 0, 0, 80, 72];
+const BOMBS_PER_LEVEL = [0, 96, 96, 80, 0, 0, 0, 80, 72, 90];
 let bombsLeft = 12;
 
 let buildings = [], bombs = [], sparks = [], obstacles = [], missiles = [];
+
+// ── Power-ups (drops from destroyed special targets) ─────────────────────────
+let powerUps = [];
+let activePowers = { shield: 0, score2x: 0 };
+const POWER_SPAWN_CHANCE = 0.5;
+const POWER_TYPES = ['BOMBS', 'SHIELD', '2X'];
+
+// ── Level 9: Sea / Ships / Sea missiles ──────────────────────────────────────
+let ships           = [];
+let seaMissiles     = [];
+let seaMissileTimer = 140;
+let seaCrashed      = false;
+let seaCrashTimer   = 0;
+let seaCrashAlpha   = 0;
+let waterPhase      = 0;
 
 // ── Level 4: Balloons + Forward Missiles ─────────────────────────────────────
 let balloons    = [];
@@ -1982,6 +2003,413 @@ function seedBuildings() {
   }
 }
 
+// ── Power-ups ────────────────────────────────────────────────────────────────
+function maybeSpawnPowerUp(x, y) {
+  if (Math.random() > POWER_SPAWN_CHANCE) return;
+  const type = POWER_TYPES[Math.floor(Math.random() * POWER_TYPES.length)];
+  powerUps.push({
+    x, y,
+    vy: 0.9 + Math.random() * 0.3,
+    sway: Math.random() * Math.PI * 2,
+    type,
+  });
+}
+
+function updatePowerUps(spd) {
+  // Decay active buffs
+  if (activePowers.shield  > 0) activePowers.shield--;
+  if (activePowers.score2x > 0) activePowers.score2x--;
+
+  const hs = selectedModel.scale;
+  const hx1 = heli.x - 38 * hs, hx2 = heli.x + 38 * hs;
+  const hy1 = heli.y - 22 * hs, hy2 = heli.y + 24 * hs;
+
+  powerUps = powerUps.filter(p => {
+    p.x   -= spd;                         // drift left with world scroll
+    p.y   += p.vy;                        // parachute fall
+    p.sway += 0.06;
+    p.x   += Math.sin(p.sway) * 0.4;       // gentle sway
+
+    // Off-screen / fell past ground
+    if (p.x < -40 || p.y > H - 10) return false;
+
+    // Heli collision
+    if (p.x > hx1 && p.x < hx2 && p.y > hy1 && p.y < hy2) {
+      applyPowerUp(p.type, p.x, p.y);
+      return false;
+    }
+    return true;
+  });
+}
+
+function applyPowerUp(type, x, y) {
+  sndPowerUp();
+  if (type === 'BOMBS') {
+    bombsLeft += 25;
+    updateBombHUD();
+    addScorePopup(x, y - 14, '+25 BOMBS', '#66ff88');
+  } else if (type === 'SHIELD') {
+    activePowers.shield = 60 * 8;           // 8 seconds
+    addScorePopup(x, y - 14, 'SHIELD 8s', '#66ddff');
+  } else if (type === '2X') {
+    activePowers.score2x = 60 * 12;         // 12 seconds
+    addScorePopup(x, y - 14, '2X SCORE 12s', '#ffdd44');
+  }
+}
+
+function drawPowerUps() {
+  for (const p of powerUps) {
+    const col = p.type === 'BOMBS'  ? '#66ff88' :
+                p.type === 'SHIELD' ? '#66ddff' : '#ffdd44';
+    // Parachute canopy
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - 14, 14, Math.PI, 0);
+    ctx.stroke();
+    // Chute lines
+    ctx.beginPath();
+    ctx.moveTo(p.x - 14, p.y - 14); ctx.lineTo(p.x, p.y);
+    ctx.moveTo(p.x + 14, p.y - 14); ctx.lineTo(p.x, p.y);
+    ctx.moveTo(p.x - 6,  p.y - 20); ctx.lineTo(p.x, p.y);
+    ctx.moveTo(p.x + 6,  p.y - 20); ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    // Crate
+    ctx.fillStyle = '#001a00';
+    ctx.fillRect(p.x - 9, p.y, 18, 12);
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.strokeRect(p.x - 9, p.y, 18, 12);
+    // Label
+    ctx.fillStyle = col;
+    ctx.font = "bold 7px 'Courier New'";
+    ctx.textAlign = 'center';
+    const lbl = p.type === 'BOMBS' ? 'BMB' : p.type === 'SHIELD' ? 'SHD' : '2X';
+    ctx.fillText(lbl, p.x, p.y + 9);
+    ctx.textAlign = 'left';
+  }
+}
+
+function drawActivePowerIcons() {
+  // Top-right HUD overlay showing remaining buff time
+  let bx = W - 14;
+  const by = 24;
+  if (activePowers.shield > 0) {
+    const s = Math.ceil(activePowers.shield / 60);
+    ctx.fillStyle = '#66ddff'; ctx.font = "bold 11px 'Courier New'";
+    ctx.textAlign = 'right';
+    ctx.fillText(`◇ SHD ${s}s`, bx, by);
+    bx -= 92;
+  }
+  if (activePowers.score2x > 0) {
+    const s = Math.ceil(activePowers.score2x / 60);
+    ctx.fillStyle = '#ffdd44'; ctx.font = "bold 11px 'Courier New'";
+    ctx.textAlign = 'right';
+    ctx.fillText(`✕2 ${s}s`, bx, by);
+  }
+  ctx.textAlign = 'left';
+}
+
+// ── Level 9: Sea / Ships ─────────────────────────────────────────────────────
+const SEA_Y = GROUND_Y;           // waterline
+const SHIP_TYPES = ['destroyer', 'cruiser', 'cargo', 'carrier'];
+
+function mkShip(startX) {
+  const type = SHIP_TYPES[Math.floor(Math.random() * SHIP_TYPES.length)];
+  const cfg = {
+    destroyer: { w: 120, h: 26, hp: 2, launcher: true,  label: 'DESTROYER' },
+    cruiser:   { w: 150, h: 30, hp: 3, launcher: true,  label: 'CRUISER'   },
+    cargo:     { w: 170, h: 32, hp: 2, launcher: false, label: 'CARGO'     },
+    carrier:   { w: 220, h: 24, hp: 4, launcher: true,  label: 'CARRIER'   },
+  }[type];
+  return {
+    x: startX, y: SEA_Y - cfg.h + 4,
+    w: cfg.w, h: cfg.h,
+    type, hp: cfg.hp, maxHp: cfg.hp,
+    launcher: cfg.launcher,
+    label: cfg.label,
+    bob: Math.random() * Math.PI * 2,
+  };
+}
+
+function seedShips() {
+  ships = [];
+  let x = 260;
+  for (let i = 0; i < 10; i++) {
+    const s = mkShip(x);
+    ships.push(s);
+    x += s.w + 120 + (Math.random() * 120 | 0);
+  }
+}
+
+function updateShips(spd) {
+  for (const s of ships) {
+    s.x -= spd;
+    s.bob += 0.05;
+  }
+  ships = ships.filter(s => s.x + s.w > -20);
+  const last = ships[ships.length - 1];
+  if (!last || last.x + last.w < W + 200) {
+    const nx = (last ? last.x + last.w : W + 80) + 140 + (Math.random() * 120 | 0);
+    ships.push(mkShip(nx));
+  }
+}
+
+function drawSea() {
+  // Sky gradient (upper) already from background; fill water below SEA_Y
+  const g = ctx.createLinearGradient(0, SEA_Y, 0, H);
+  g.addColorStop(0, '#002a4a');
+  g.addColorStop(1, '#001020');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, SEA_Y, W, H - SEA_Y);
+
+  // Animated wave lines
+  waterPhase += 0.04;
+  ctx.strokeStyle = 'rgba(100, 200, 255, 0.22)';
+  ctx.lineWidth = 1;
+  for (let row = 0; row < 4; row++) {
+    const y = SEA_Y + 6 + row * 8;
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += 12) {
+      const dy = Math.sin((x + waterPhase * 40 + row * 25) * 0.05) * 1.6;
+      if (x === 0) ctx.moveTo(x, y + dy);
+      else        ctx.lineTo(x, y + dy);
+    }
+    ctx.stroke();
+  }
+
+  // Horizon glow
+  ctx.strokeStyle = '#2a6a9a'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, SEA_Y); ctx.lineTo(W, SEA_Y); ctx.stroke();
+}
+
+function drawShips() {
+  for (const s of ships) {
+    const bobY = Math.sin(s.bob) * 1.2;
+    const x = s.x, y = s.y + bobY;
+
+    // Hull (trapezoidal)
+    ctx.fillStyle = '#0a1a1a';
+    ctx.strokeStyle = '#00ff41';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 8, y + s.h);
+    ctx.lineTo(x + s.w - 8, y + s.h);
+    ctx.lineTo(x + s.w, y + s.h * 0.55);
+    ctx.lineTo(x, y + s.h * 0.55);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    // Deck
+    ctx.fillStyle = '#001a00';
+    ctx.fillRect(x, y + s.h * 0.45, s.w, 4);
+
+    if (s.type === 'destroyer') {
+      // Bridge
+      ctx.fillStyle = '#001a00';
+      ctx.fillRect(x + s.w * 0.55, y + 8, 22, 16);
+      ctx.strokeRect(x + s.w * 0.55, y + 8, 22, 16);
+      // Mast
+      ctx.beginPath();
+      ctx.moveTo(x + s.w * 0.55 + 11, y + 8);
+      ctx.lineTo(x + s.w * 0.55 + 11, y - 12);
+      ctx.stroke();
+      // Gun turret
+      ctx.fillStyle = '#002200';
+      ctx.fillRect(x + s.w * 0.22, y + 10, 16, 10);
+      ctx.strokeRect(x + s.w * 0.22, y + 10, 16, 10);
+      ctx.beginPath();
+      ctx.moveTo(x + s.w * 0.22 + 8, y + 15);
+      ctx.lineTo(x + s.w * 0.22 + 8, y + 2);
+      ctx.stroke();
+    } else if (s.type === 'cruiser') {
+      ctx.fillStyle = '#001a00';
+      ctx.fillRect(x + s.w * 0.48, y + 4, 30, 20);
+      ctx.strokeRect(x + s.w * 0.48, y + 4, 30, 20);
+      // Twin masts
+      ctx.beginPath();
+      ctx.moveTo(x + s.w * 0.48 + 8,  y + 4); ctx.lineTo(x + s.w * 0.48 + 8,  y - 16);
+      ctx.moveTo(x + s.w * 0.48 + 22, y + 4); ctx.lineTo(x + s.w * 0.48 + 22, y - 10);
+      ctx.stroke();
+      // Missile tubes
+      ctx.fillStyle = '#002200';
+      for (let i = 0; i < 3; i++) {
+        ctx.fillRect(x + s.w * 0.18 + i * 8, y + 8, 6, 14);
+        ctx.strokeRect(x + s.w * 0.18 + i * 8, y + 8, 6, 14);
+      }
+    } else if (s.type === 'cargo') {
+      // Containers
+      const cols = ['#003a10', '#001a00', '#002200'];
+      for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = cols[i % cols.length];
+        ctx.fillRect(x + 14 + i * 22, y + 6, 20, 16);
+        ctx.strokeRect(x + 14 + i * 22, y + 6, 20, 16);
+      }
+      // Small bridge at back
+      ctx.fillStyle = '#001a00';
+      ctx.fillRect(x + s.w - 26, y - 2, 18, 22);
+      ctx.strokeRect(x + s.w - 26, y - 2, 18, 22);
+    } else { // carrier
+      // Flat flight deck
+      ctx.fillStyle = '#001a00';
+      ctx.fillRect(x + 6, y - 2, s.w - 12, 8);
+      ctx.strokeRect(x + 6, y - 2, s.w - 12, 8);
+      // Island
+      ctx.fillStyle = '#002200';
+      ctx.fillRect(x + s.w * 0.70, y - 14, 18, 14);
+      ctx.strokeRect(x + s.w * 0.70, y - 14, 18, 14);
+      // Deck stripes
+      ctx.strokeStyle = '#005a18';
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x + 20 + i * 40, y);
+        ctx.lineTo(x + 28 + i * 40, y);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = '#00ff41';
+    }
+
+    // HP indicator (damaged ships show scorch)
+    if (s.hp < s.maxHp) {
+      ctx.fillStyle = 'rgba(255, 80, 0, 0.35)';
+      ctx.fillRect(x + s.w * 0.3, y + 4, s.w * 0.4, 8);
+    }
+
+    // Launcher indicator — blinking red light
+    if (s.launcher && (Date.now() / 350 | 0) % 2 === 0) {
+      ctx.fillStyle = '#ff3300';
+      ctx.beginPath();
+      ctx.arc(x + s.w * 0.5, y - 4, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+function fireSeaMissile(ship) {
+  const sx = ship.x + ship.w * 0.5;
+  const sy = ship.y - 4;
+  const dx = heli.x - sx;
+  const dy = heli.y - sy;
+  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+  const speed = 7.2;    // fast
+  seaMissiles.push({
+    x: sx, y: sy,
+    vx: (dx / dist) * speed,
+    vy: (dy / dist) * speed,
+    angle: Math.atan2(dy, dx),
+    trail: [],
+  });
+  sndMissileLaunch();
+}
+
+function updateSeaMissiles() {
+  if (currentLevel !== 9) { seaMissiles = []; seaMissileTimer = 140; return; }
+
+  // Random launch from a launcher-capable ship on screen
+  seaMissileTimer--;
+  if (seaMissileTimer <= 0 && !seaCrashed && !levelDone) {
+    const eligible = ships.filter(s => s.launcher && s.x > 40 && s.x + s.w < W - 40 && s.hp > 0);
+    if (eligible.length) {
+      const s = eligible[Math.floor(Math.random() * eligible.length)];
+      fireSeaMissile(s);
+    }
+    seaMissileTimer = 220 + Math.floor(Math.random() * 180);   // 3.7–6.7s
+  }
+
+  seaMissiles = seaMissiles.filter(m => {
+    // Contrail samples
+    m.trail.push({ x: m.x, y: m.y });
+    if (m.trail.length > 14) m.trail.shift();
+
+    m.x += m.vx;
+    m.y += m.vy;
+
+    if (m.x < -30 || m.x > W + 30 || m.y < -40 || m.y > H + 10) return false;
+
+    // Collision with heli
+    const hs = selectedModel.scale;
+    const dx = m.x - heli.x, dy = m.y - heli.y;
+    if (Math.sqrt(dx * dx + dy * dy) < 22 * hs) {
+      if (activePowers.shield > 0) {
+        // Shield absorbs — consume a chunk, spawn sparks
+        activePowers.shield = Math.max(0, activePowers.shield - 60 * 3);
+        mkSparks(m.x, m.y);
+        sndBombHit();
+        return false;
+      }
+      triggerSeaCrash();
+      return false;
+    }
+    return true;
+  });
+}
+
+function drawSeaMissiles() {
+  for (const m of seaMissiles) {
+    // White contrail
+    for (let i = 0; i < m.trail.length; i++) {
+      const t = m.trail[i];
+      const a = (i / m.trail.length) * 0.6;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 2.2 * (i / m.trail.length + 0.3), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Missile body (rotated to travel direction)
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.rotate(m.angle);
+    ctx.fillStyle = '#ffdd44';
+    ctx.beginPath();
+    ctx.moveTo(8, 0); ctx.lineTo(-4, -3); ctx.lineTo(-4, 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ff4400';
+    ctx.fillRect(-8, -2, 4, 4);
+    ctx.restore();
+  }
+}
+
+function triggerSeaCrash() {
+  if (seaCrashed || levelDone) return;
+  seaCrashed = true;
+  for (let i = 0; i < 10; i++) mkSparks(heli.x + (Math.random()-0.5)*40, heli.y);
+  mkExplosion(heli.x, heli.y, 2.2);
+  sndCrash();
+  seaCrashTimer = 1;
+  levelDone = true;  // stop spawning things
+  setTimeout(() => {
+    if (currentLevel < TOTAL_LEVELS) {
+      currentLevel++;
+      document.getElementById('hud-level-num').textContent = currentLevel;
+      showLevelTransition(currentLevel, true);
+    } else {
+      endGame();
+    }
+  }, 2600);
+}
+
+function drawSeaCrashOverlay() {
+  if (!seaCrashed || seaCrashTimer === 0) return;
+  seaCrashAlpha = Math.min(1, seaCrashAlpha + 0.025);
+  ctx.globalAlpha = seaCrashAlpha * 0.72;
+  ctx.fillStyle = '#000015';
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+  if (seaCrashAlpha < 0.3) return;
+  const a = Math.min(1, (seaCrashAlpha - 0.3) / 0.7);
+  ctx.globalAlpha = a;
+  ctx.fillStyle = '#ff4400';
+  ctx.font = "bold 40px 'Courier New'";
+  ctx.textAlign = 'center';
+  ctx.fillText('DOWNED AT SEA', W / 2, H / 2 - 10);
+  ctx.fillStyle = '#ff8866';
+  ctx.font = "14px 'Courier New'";
+  ctx.fillText('HELICOPTER LOST TO ANTI-AIR MISSILE', W / 2, H / 2 + 20);
+  ctx.textAlign = 'left';
+  ctx.globalAlpha = 1;
+}
 
 // ── Obstacles (Level 2) ──────────────────────────────────────────────────────
 const OBS_W    = 18;
@@ -3198,11 +3626,17 @@ function showLevelTransition(level, isNext) {
   enemyHelis = [];
   stormMissiles = [];
   mines = [];
+  ships = [];
+  seaMissiles = [];
+  powerUps = [];
+  activePowers = { shield: 0, score2x: 0 };
+  seaCrashed = false; seaCrashTimer = 0; seaCrashAlpha = 0; seaMissileTimer = 140;
   if (level === 4) seedBalloons();
   if (level === 5) seedCave();
   if (level === 6) seedEnemyHelis();
   if (level === 7) seedStorm();
   if (level === 8) seedMines();
+  if (level === 9) seedShips();
   missileFlashTimer = 0;
   for (const l of LAUNCHER_POSITIONS) { l.cooldown = 90 + Math.floor(Math.random()*120); }
   document.getElementById('lt-num').textContent = level;
@@ -3215,7 +3649,8 @@ function showLevelTransition(level, isNext) {
     5: 'NAVIGATE THE CAVE — SHOOT TO CLEAR A PATH',
     6: 'ENEMY HELIS INCOMING — SHOOT THEM DOWN FOR +300',
     7: 'STORM INCOMING — TURBULENCE + MISSILES',
-    8: 'MINEFIELD — BOMB THE MINES FOR +400, AVOID THEM'
+    8: 'MINEFIELD — BOMB THE MINES FOR +400, AVOID THEM',
+    9: 'NAVAL STRIKE — SINK THE FLEET, DODGE THEIR MISSILES'
   };
   const levelEarned = score - levelStartScore;
   const earnedStr   = isNext && levelEarned > 0
@@ -3285,16 +3720,22 @@ function update() {
     }
   }
 
-  for (const b of buildings) b.x -= spd;
+  if (currentLevel !== 9) {
+    for (const b of buildings) b.x -= spd;
 
-  // Cull off-left
-  buildings = buildings.filter(b => b.x + b.baseW > -10);
+    // Cull off-left
+    buildings = buildings.filter(b => b.x + b.baseW > -10);
 
-  // Spawn from right
-  const last = buildings[buildings.length - 1];
-  if (!last || last.x + last.baseW < W + 120) {
-    const nx = (last ? last.x + last.baseW : W + 60) + 80 + (Math.random() * 80 | 0);
-    buildings.push(mkBuilding(nx));
+    // Spawn from right
+    const last = buildings[buildings.length - 1];
+    if (!last || last.x + last.baseW < W + 120) {
+      const nx = (last ? last.x + last.baseW : W + 60) + 80 + (Math.random() * 80 | 0);
+      buildings.push(mkBuilding(nx));
+    }
+  } else {
+    // Level 9: sea — ships instead of buildings
+    updateShips(spd);
+    updateSeaMissiles();
   }
 
   // Ground details
@@ -3309,6 +3750,62 @@ function update() {
 
   bombs = bombs.filter(bm => {
     bm.y += BOMB_SPD;
+
+    // Level 9: ship collision + water splash
+    if (currentLevel === 9) {
+      if (bm.y > SEA_Y + 8) {
+        // Splash
+        mkExplosion(bm.x, SEA_Y - 2, 0.5);
+        for (let i = 0; i < 6; i++) {
+          sparks.push({
+            x: bm.x + (Math.random()-0.5)*10,
+            y: SEA_Y - 2,
+            vx: (Math.random()-0.5)*3,
+            vy: -1.5 - Math.random()*2,
+            life: 18, maxL: 18,
+          });
+        }
+        return false;
+      }
+      for (let si = ships.length - 1; si >= 0; si--) {
+        const s = ships[si];
+        const topY = s.y + Math.sin(s.bob) * 1.2;
+        if (bm.x >= s.x && bm.x <= s.x + s.w &&
+            bm.y >= topY && bm.y <= topY + s.h + 4) {
+
+          comboCount++;
+          comboTimer = COMBO_WINDOW;
+          const mult = comboCount <= 1 ? 1 : comboCount <= 3 ? 2 : comboCount <= 6 ? 3 : 4;
+          const doub = activePowers.score2x > 0 ? 2 : 1;
+
+          s.hp--;
+          levelHits++;
+          const base = { destroyer: 300, cruiser: 450, cargo: 200, carrier: 700 }[s.type];
+          if (s.hp <= 0) {
+            mkExplosion(s.x + s.w*0.5, topY + s.h*0.5, 2.4);
+            mkExplosion(s.x + s.w*0.3, topY + s.h*0.3, 1.5);
+            mkExplosion(s.x + s.w*0.7, topY + s.h*0.6, 1.5);
+            setTimeout(() => mkExplosion(s.x + s.w*0.5, topY, 2.0), 180);
+            ships.splice(si, 1);
+            const pts = base * mult * doub;
+            score += pts;
+            const lbl = `${s.label}! ${mult>1?`COMBO x${mult}! `:''}+${pts}`;
+            addScorePopup(bm.x, bm.y - 10, lbl, '#ffff44');
+            maybeSpawnPowerUp(s.x + s.w*0.5, topY);
+          } else {
+            mkExplosion(bm.x, bm.y, 1.0);
+            const pts = 80 * mult * doub;
+            score += pts;
+            addScorePopup(bm.x, bm.y - 10, mult>1?`COMBO x${mult}! +${pts}`:`+${pts}`, mult>1?'#ffff44':'#aaffbb');
+          }
+          sndBombHit();
+          document.getElementById('hud-score').textContent = score.toLocaleString();
+          return false;
+        }
+      }
+      return true;
+    }
+
     if (bm.y > GROUND_Y + 10) { mkExplosion(bm.x, GROUND_Y - 4, 0.6); return false; }
 
     for (let bi = buildings.length - 1; bi >= 0; bi--) {
@@ -3351,7 +3848,8 @@ function update() {
               mkExplosion(bm.x, bm.y, 1.6);
             }
             buildings.splice(bi, 1);
-            const pts = collapseBase * mult;
+            const doub = activePowers.score2x > 0 ? 2 : 1;
+            const pts = collapseBase * mult * doub;
             score += pts;
             let label;
             if (b.type !== 'building') {
@@ -3362,13 +3860,18 @@ function update() {
               label = `RAZED! +${pts}`;
             }
             addScorePopup(bm.x, bm.y - 10, label, b.type !== 'building' ? '#ffff44' : '#ff9900');
+            // Drop power-up from destroyed special targets
+            if (b.type === 'fuel' || b.type === 'radar' || b.type === 'bunker') {
+              maybeSpawnPowerUp(b.x + b.baseW / 2, bm.y);
+            }
           } else {
             // Hit — remove the struck layer, show progressive damage
             b.damaged = true;
             b.shade = '#0a0a00';
             b.layers.splice(r.i, 1); // remove hit layer
             mkExplosion(bm.x, bm.y, 1.0);
-            const pts = damageBase * mult;
+            const doub = activePowers.score2x > 0 ? 2 : 1;
+            const pts = damageBase * mult * doub;
             score += pts;
             addScorePopup(bm.x, bm.y - 10, mult > 1 ? `COMBO x${mult}! +${pts}` : `+${pts}`, mult > 1 ? '#ffff44' : '#aaffbb');
           }
@@ -3390,6 +3893,7 @@ function update() {
   updateEnemyHelis();
   updateStorm();
   updateMines();
+  updatePowerUps(spd);
   if (fanfareFlash > 0) fanfareFlash--;
   if (outOfBombsFlash > 0) outOfBombsFlash++;
   updateExplosions();
@@ -3410,10 +3914,16 @@ function render() {
 
   drawBackground();
 
-  const isCityLevel = currentLevel !== 4 && currentLevel !== 5;
+  const isCityLevel = currentLevel !== 4 && currentLevel !== 5 && currentLevel !== 9;
+  const isSeaLevel  = currentLevel === 9;
   if (isCityLevel) {
     drawGround();
     drawGroundDetails();
+  }
+  if (isSeaLevel) {
+    drawSea();
+    drawShips();
+    drawBombs();
   }
   drawMissiles();
   if (isCityLevel) drawBuildings();
@@ -3424,13 +3934,29 @@ function render() {
   drawMines();
   drawEnemyHelis();
   drawStormEffect();
+  if (isSeaLevel) drawSeaMissiles();
+  drawPowerUps();
   drawExplosions();
   drawDebris();
   drawSparks();
+  // Shield aura around heli
+  if (activePowers.shield > 0) {
+    ctx.save();
+    const pulse = 0.55 + 0.25 * Math.sin(Date.now() * 0.012);
+    ctx.globalAlpha = pulse;
+    ctx.strokeStyle = '#66ddff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(heli.x, heli.y, 40 * selectedModel.scale, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
   drawHeli();
   drawFinishLine();
   drawScorePopups();
   drawComboDisplay();
+  drawActivePowerIcons();
+  if (isSeaLevel) drawSeaCrashOverlay();
 
   // Level-complete fanfare flash
   if (fanfareFlash > 0) {
@@ -3505,6 +4031,9 @@ function startGame() {
   windX = 0; windY = 0; windTimer = 0;
   stormMissiles = []; stormMissileTimer = 100; stormMissileFlash = 0;
   mines = []; mineFlashTimer = 0;
+  ships = []; seaMissiles = []; seaMissileTimer = 140;
+  seaCrashed = false; seaCrashTimer = 0; seaCrashAlpha = 0;
+  powerUps = []; activePowers = { shield: 0, score2x: 0 };
   for (const l of LAUNCHER_POSITIONS) { l.cooldown = 90 + Math.floor(Math.random()*120); }
   heli.x       = 210;
   heli.y       = 230;
