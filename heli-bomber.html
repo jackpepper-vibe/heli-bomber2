@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#000000">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -18,11 +18,23 @@
       background: #000;
       font-family: 'Courier New', monospace;
       color: #00ff41;
-      height: 100vh;
+      height: 100%;
+      min-height: 100dvh;
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
+      padding-top:    env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left:   env(safe-area-inset-left);
+      padding-right:  env(safe-area-inset-right);
+    }
+
+    /* allow splash/heli-select to scroll on small phones */
+    #splash, #heli-select {
+      max-height: 100dvh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     /* â”€â”€ SPLASH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -60,8 +72,8 @@
 
     .scores-panel {
       border: 1px solid #00ff41;
-      padding: 14px 22px;
-      width: min(500px, 92vw);
+      padding: 12px 16px;
+      width: min(560px, 96vw);
       box-shadow: 0 0 14px rgba(0,255,65,0.12);
     }
 
@@ -73,17 +85,30 @@
       margin-bottom: 10px;
     }
 
-    .score-row {
-      display: flex;
-      font-size: 0.82rem;
-      line-height: 1.85;
-      gap: 6px;
+    /* two-column leaderboard grid */
+    .scores-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px 0;
+    }
+    .scores-grid > div:first-child {
+      border-right: 1px solid #003a10;
+      padding-right: 10px;
+    }
+    .scores-grid > div:last-child {
+      padding-left: 10px;
     }
 
-    .score-row .rk   { color: #005a18; width: 26px; flex-shrink: 0; }
-    .score-row .nm   { flex: 1; }
-    .score-row .dots { flex: 1; color: #003a0e; letter-spacing: 1px; overflow: hidden; }
-    .score-row .pts  { color: #00ff41; width: 60px; text-align: right; flex-shrink: 0; }
+    .score-row {
+      display: flex;
+      font-size: 0.78rem;
+      line-height: 1.75;
+      gap: 4px;
+    }
+
+    .score-row .rk   { color: #005a18; width: 22px; flex-shrink: 0; }
+    .score-row .nm   { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .score-row .pts  { color: #00ff41; text-align: right; flex-shrink: 0; padding-left: 4px; }
     .score-row.hi    { color: #ffff44; }
     .score-row.hi .pts { color: #ffff44; }
 
@@ -149,7 +174,8 @@
       display: none;
       flex-direction: column;
       align-items: center;
-      gap: 7px;
+      gap: 4px;
+      width: 100%;
     }
 
     #hud {
@@ -550,18 +576,25 @@ function getAudio() {
 // handler. We attach listeners to the first touch or click on the page and play
 // a silent buffer — after that the context stays unlocked for the whole session.
 function _unlockAudio() {
-  const ac = getAudio();
-  // play a zero-length silent buffer to satisfy Safari's gesture requirement
-  const buf = ac.createBuffer(1, 1, 22050);
-  const src = ac.createBufferSource();
-  src.buffer = buf;
-  src.connect(ac.destination);
-  src.start(0);
-  ac.resume();
+  // Create context immediately inside the gesture handler (required by iOS Safari)
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // Resume if suspended — iOS keeps it suspended until a gesture
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
+  // Play a silent zero-length buffer — older iOS versions need this to truly unlock
+  try {
+    const buf = audioCtx.createBuffer(1, 1, 22050);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(audioCtx.destination);
+    src.start(0);
+  } catch(e) {}
 }
-document.addEventListener('touchstart', _unlockAudio, { once: true, passive: true });
-document.addEventListener('touchend',   _unlockAudio, { once: true, passive: true });
-document.addEventListener('click',      _unlockAudio, { once: true });
+// Fire on any interaction — once is enough
+['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(ev => {
+  document.addEventListener(ev, _unlockAudio, { once: true, passive: true });
+});
 
 // Generic synth helper
 function playTone({ freq = 440, type = 'sine', gain = 0.4, dur = 0.3,
@@ -784,16 +817,18 @@ function renderScores(elId, list, highlightName) {
     return;
   }
   const hn = (highlightName || '').toUpperCase().trim() || 'ACE';
-  el.innerHTML = list.map((s, i) => {
+  const rows = list.map((s, i) => {
     const hi = s.name === hn ? ' hi' : '';
-    const dots = 'Â·'.repeat(Math.max(3, 26 - s.name.length - String(s.score).length));
     return `<div class="score-row${hi}">
       <span class="rk">${String(i+1).padStart(2,'0')}.</span>
       <span class="nm">${s.name}</span>
-      <span class="dots">${dots}</span>
       <span class="pts">${s.score.toLocaleString()}</span>
     </div>`;
-  }).join('');
+  });
+  // split into two columns: 1-5 left, 6-10 right
+  const left  = rows.slice(0, 5).join('');
+  const right = rows.slice(5, 10).join('');
+  el.innerHTML = `<div class="scores-grid"><div>${left}</div><div>${right}</div></div>`;
 }
 
 // â”€â”€ Screen Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
