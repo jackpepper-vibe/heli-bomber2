@@ -3239,7 +3239,20 @@ function update() {
             // Full collapse — big explosion on each remaining layer
             const rects = layerRects(b);
             rects.forEach(lr => mkExplosion(lr.x + lr.w/2, lr.y + lr.h/2, 1.1));
-            mkExplosion(bm.x, bm.y, 1.6);
+            if (b.type === 'fuel') {
+              // Fuel depot: massive chain explosion
+              const fx = b.x + b.baseW / 2;
+              const fy = rects[0] ? rects[0].y + rects[0].h / 2 : bm.y;
+              mkExplosion(fx, fy, 3.5);
+              mkExplosion(fx - 18, fy + 8,  2.2);
+              mkExplosion(fx + 18, fy + 8,  2.2);
+              mkExplosion(fx,      fy - 20, 2.8);
+              mkSparks(fx, fy); mkSparks(fx, fy); mkSparks(fx, fy);
+              setTimeout(() => { mkExplosion(fx, fy - 10, 2.0); mkSparks(fx, fy - 10); }, 120);
+              setTimeout(() => { mkExplosion(fx + 10, fy, 1.8); }, 240);
+            } else {
+              mkExplosion(bm.x, bm.y, 1.6);
+            }
             buildings.splice(bi, 1);
             const pts = collapseBase * mult;
             score += pts;
