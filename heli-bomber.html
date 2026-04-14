@@ -798,7 +798,7 @@ let rotorA      = 0;
 
 const heli = { x: 210, y: 230 };
 const HELI_SPD  = 3.5;
-const BOMB_SPD  = 7;
+const BOMB_SPD  = 3.5;
 const SCROLL    = 2.2;   // base world scroll speed (px/frame)
 
 let buildings = [], bombs = [], sparks = [], obstacles = [], missiles = [];
@@ -1767,22 +1767,70 @@ function renderPreviews() {
 //   MEDIUM     â€“ 3-4 layers, 32-52px ea  â†’ total 96-208px
 //   TALL       â€“ 5 layers, 52-76px each  â†’ total 260-380px
 function mkBuilding(startX) {
+  // Determine target type
+  const typeRoll = Math.random();
+  let type;
+  if      (typeRoll < 0.58) type = 'building';
+  else if (typeRoll < 0.76) type = 'fuel';
+  else if (typeRoll < 0.90) type = 'radar';
+  else                      type = 'bunker';
+
+  // ── Fuel Depot ─────────────────────────────────────────────────────────────
+  if (type === 'fuel') {
+    const w = 50 + Math.random() * 20 | 0;
+    return {
+      x: startX, baseW: w, type,
+      layers: [{ h: 44, w: w - 4, wins: [] }],
+      shade: '#001800', hasAntenna: false, hasWaterTower: false, hasNeon: false,
+      hp: 1, damaged: false, crackSeed: Math.random(),
+    };
+  }
+
+  // ── Radar Tower ────────────────────────────────────────────────────────────
+  if (type === 'radar') {
+    const footprint = 30 + Math.random() * 12 | 0;
+    return {
+      x: startX, baseW: footprint, type,
+      layers: [
+        { h: 16, w: footprint,          wins: [] },   // base platform
+        { h: 38, w: 8,                  wins: [] },   // lower mast
+        { h: 38, w: 6,                  wins: [] },   // upper mast
+        { h: 10, w: 22,                 wins: [] },   // dish (widest = hardest-to-miss part)
+      ],
+      shade: '#001800', hasAntenna: false, hasWaterTower: false, hasNeon: false,
+      hp: 1, damaged: false, crackSeed: Math.random(),
+    };
+  }
+
+  // ── Bunker ─────────────────────────────────────────────────────────────────
+  if (type === 'bunker') {
+    const w = 64 + Math.random() * 28 | 0;
+    return {
+      x: startX, baseW: w, type,
+      layers: [
+        { h: 24, w: w,          wins: [] },   // main body
+        { h: 16, w: w - 10,     wins: [] },   // upper slab
+      ],
+      shade: '#001800', hasAntenna: false, hasWaterTower: false, hasNeon: false,
+      hp: 2, damaged: false, crackSeed: Math.random(),
+    };
+  }
+
+  // ── Standard Building ──────────────────────────────────────────────────────
   const roll = Math.random();
   let nL, hLo, hHi, wBase;
-
-  if (roll < 0.20) {               // SHORT
+  if (roll < 0.20) {
     nL = 3;  hLo = 14; hHi = 22;
     wBase = 30 + Math.random() * 22 | 0;
-  } else if (roll < 0.58) {        // MEDIUM
+  } else if (roll < 0.58) {
     nL = 4 + (Math.random() < 0.5 ? 1 : 0);
     hLo = 24; hHi = 40;
     wBase = 36 + Math.random() * 28 | 0;
-  } else {                         // TALL
+  } else {
     nL = 6 + (Math.random() < 0.4 ? 1 : 0);
     hLo = 38; hHi = 58;
     wBase = 38 + Math.random() * 24 | 0;
   }
-
   const layers = [];
   for (let i = 0; i < nL; i++) {
     const h    = hLo + Math.random() * (hHi - hLo) | 0;
@@ -1790,19 +1838,15 @@ function mkBuilding(startX) {
     const nWin = Math.max(1, (w - 6) / 8 | 0);
     layers.push({ h, w, wins: Array.from({length: nWin}, () => Math.random() > 0.3) });
   }
-  // Rooftop features
   const isTall = nL >= 6;
   return {
-    x: startX,
-    baseW: wBase,
+    x: startX, baseW: wBase, type: 'building',
     layers,
     shade: Math.random() > 0.5 ? '#001800' : '#001200',
     hasAntenna:    isTall && Math.random() > 0.40,
     hasWaterTower: isTall && Math.random() > 0.55,
     hasNeon:       Math.random() > 0.65,
-    hp:        2,           // two hits to fully destroy
-    damaged:   false,
-    crackSeed: Math.random(),
+    hp: 2, damaged: false, crackSeed: Math.random(),
   };
 }
 
@@ -1812,7 +1856,7 @@ function seedBuildings() {
   for (let i = 0; i < 18; i++) {
     const b = mkBuilding(x);
     buildings.push(b);
-    x += b.baseW + 25 + (Math.random() * 33 | 0);
+    x += b.baseW + 80 + (Math.random() * 80 | 0);
   }
 }
 
@@ -2512,8 +2556,238 @@ function drawFinishLine() {
   ctx.textAlign = 'center'; ctx.fillText('FINISH', x, 16); ctx.textAlign = 'left';
 }
 
+function drawFuelDepot(b) {
+  const cx  = b.x + b.baseW / 2;
+  const rects = layerRects(b);
+  const r   = rects[0];
+  const ty  = r.y, th = r.h, tw = r.w;
+  const tx  = cx - tw / 2;
+
+  // Support legs
+  ctx.strokeStyle = '#00aa44'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(tx + 8,  GROUND_Y); ctx.lineTo(tx + 8,  ty + th * 0.65);
+  ctx.moveTo(tx + tw - 8, GROUND_Y); ctx.lineTo(tx + tw - 8, ty + th * 0.65);
+  ctx.moveTo(cx, GROUND_Y); ctx.lineTo(cx, ty + th * 0.75);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // Tank body (rect with curved ends)
+  ctx.fillStyle = b.damaged ? '#150800' : '#001e0a';
+  ctx.strokeStyle = '#00cc44'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(tx, ty, tw, th, 8);
+  ctx.fill(); ctx.stroke();
+
+  // Horizontal band lines
+  ctx.strokeStyle = '#00aa44'; ctx.lineWidth = 0.8; ctx.globalAlpha = 0.55;
+  for (let i = 1; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(tx + 8, ty + th * (i / 3));
+    ctx.lineTo(tx + tw - 8, ty + th * (i / 3));
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // Top dome
+  ctx.fillStyle = b.damaged ? '#1a0a00' : '#003a12';
+  ctx.beginPath();
+  ctx.ellipse(cx, ty + 4, tw * 0.42, 9, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.strokeStyle = '#00cc44'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(cx, ty + 4, tw * 0.42, 9, 0, Math.PI, 0); ctx.stroke();
+
+  // FUEL label + point value
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffaa00'; ctx.font = "bold 9px 'Courier New'";
+  ctx.globalAlpha = 0.9;
+  ctx.fillText('FUEL', cx, ty + th * 0.58);
+  ctx.fillStyle = '#ffff88'; ctx.font = "bold 8px 'Courier New'";
+  ctx.globalAlpha = 0.55 + 0.25 * Math.sin(Date.now() * 0.005 + b.x);
+  ctx.fillText('400 PTS', cx, ty - 12);
+  ctx.globalAlpha = 1;
+
+  // Hazard stripes on base
+  ctx.globalAlpha = 0.45;
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = i % 2 === 0 ? '#ffaa00' : '#001800';
+    ctx.fillRect(tx + i * (tw / 3), ty + th - 8, tw / 3, 8);
+  }
+  ctx.globalAlpha = 1;
+
+  // Fire if damaged
+  if (b.damaged) {
+    const flicker = 0.5 + 0.5 * Math.random();
+    ctx.globalAlpha = flicker * 0.85;
+    ctx.fillStyle = '#ff5500';
+    ctx.beginPath(); ctx.arc(cx, ty - 6, 6 + Math.random() * 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffcc00';
+    ctx.beginPath(); ctx.arc(cx, ty - 9, 3 + Math.random() * 4, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  ctx.textAlign = 'left';
+}
+
+function drawRadarTower(b) {
+  const cx  = b.x + b.baseW / 2;
+  const rects = layerRects(b);
+  // rects[0] = base platform, [1] = lower mast, [2] = upper mast, [3] = dish
+
+  // Base platform
+  const base = rects[0];
+  ctx.fillStyle = b.damaged ? '#0a0800' : '#001800';
+  ctx.fillRect(base.x, base.y, base.w, base.h);
+  ctx.strokeStyle = '#00cc44'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(base.x, base.y, base.w, base.h);
+  // Platform details
+  ctx.strokeStyle = '#00aa44'; ctx.lineWidth = 0.8; ctx.globalAlpha = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(base.x + 4, base.y + base.h * 0.5); ctx.lineTo(base.x + base.w - 4, base.y + base.h * 0.5);
+  ctx.stroke(); ctx.globalAlpha = 1;
+
+  // Mast (thin, no fill needed — just a line for ultra-thin look)
+  if (rects[1]) {
+    const m1 = rects[1];
+    ctx.fillStyle = '#002800';
+    ctx.fillRect(m1.x, m1.y, m1.w, m1.h);
+    ctx.strokeStyle = '#00cc44'; ctx.lineWidth = 1;
+    ctx.strokeRect(m1.x, m1.y, m1.w, m1.h);
+  }
+  if (rects[2]) {
+    const m2 = rects[2];
+    ctx.fillStyle = '#002800';
+    ctx.fillRect(m2.x, m2.y, m2.w, m2.h);
+    ctx.strokeStyle = '#00cc44'; ctx.lineWidth = 1;
+    ctx.strokeRect(m2.x, m2.y, m2.w, m2.h);
+  }
+
+  // Dish — draw as a tilted arc/parabola
+  if (rects[3]) {
+    const d = rects[3];
+    const dy = d.y + d.h / 2;
+    ctx.fillStyle = b.damaged ? '#0a0a00' : '#003a14';
+    ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 1.5;
+    // Parabolic dish shape
+    ctx.beginPath();
+    ctx.moveTo(d.x, dy + 5);
+    ctx.quadraticCurveTo(cx, dy - 14, d.x + d.w, dy + 5);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // Center strut
+    ctx.strokeStyle = '#00cc44'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx, dy + 5); ctx.lineTo(cx, rects[2] ? rects[2].y : dy + 20); ctx.stroke();
+    // Blinking receiver dot
+    if ((Date.now() / 400 | 0) % 2 === 0) {
+      ctx.fillStyle = '#00ffaa'; ctx.globalAlpha = 0.9;
+      ctx.beginPath(); ctx.arc(cx, dy - 5, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Point value label
+  if (rects[3]) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#88ffcc'; ctx.font = "bold 8px 'Courier New'";
+    ctx.globalAlpha = 0.55 + 0.25 * Math.sin(Date.now() * 0.005 + b.x);
+    ctx.fillText('350 PTS', cx, rects[3].y - 6);
+    ctx.globalAlpha = 1;
+  }
+
+  // Damage state
+  if (b.damaged) {
+    const flicker = 0.4 + 0.6 * Math.random();
+    ctx.globalAlpha = flicker * 0.7;
+    ctx.fillStyle = '#ff4400';
+    const topY = rects[rects.length - 1].y;
+    ctx.beginPath(); ctx.arc(cx, topY - 4, 4 + Math.random() * 5, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  ctx.textAlign = 'left';
+}
+
+function drawBunker(b) {
+  const cx  = b.x + b.baseW / 2;
+  const rects = layerRects(b);
+
+  for (let ri = 0; ri < rects.length; ri++) {
+    const r = rects[ri];
+    const isTop = ri === rects.length - 1;
+
+    ctx.fillStyle = b.damaged ? '#0a0a05' : (ri === 0 ? '#001005' : '#001a08');
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+
+    ctx.strokeStyle = '#00cc44'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+
+    // Thick horizontal reinforcement lines
+    ctx.strokeStyle = '#00aa44'; ctx.lineWidth = 0.8; ctx.globalAlpha = 0.5;
+    if (r.h > 10) {
+      ctx.beginPath();
+      ctx.moveTo(r.x + 2, r.y + r.h * 0.5); ctx.lineTo(r.x + r.w - 2, r.y + r.h * 0.5);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Battlements on top layer
+    if (isTop) {
+      const merlonW = 10, merlonH = 8, gap = 10;
+      const count = Math.floor(r.w / (merlonW + gap));
+      const totalW = count * (merlonW + gap) - gap;
+      const startX = r.x + (r.w - totalW) / 2;
+      ctx.fillStyle = b.damaged ? '#0a0a05' : '#001a08';
+      ctx.strokeStyle = '#00cc44'; ctx.lineWidth = 1;
+      for (let i = 0; i < count; i++) {
+        const mx = startX + i * (merlonW + gap);
+        ctx.fillRect(mx, r.y - merlonH, merlonW, merlonH);
+        ctx.strokeRect(mx, r.y - merlonH, merlonW, merlonH);
+      }
+    }
+
+    // Gun slits (horizontal thin openings)
+    if (ri === 0) {
+      ctx.fillStyle = '#000500';
+      const slitCount = Math.max(1, r.w / 22 | 0);
+      const spacing = r.w / (slitCount + 1);
+      for (let i = 1; i <= slitCount; i++) {
+        ctx.fillRect(r.x + spacing * i - 6, r.y + r.h * 0.45, 12, 3);
+      }
+    }
+  }
+
+  // BUNKER label + point value
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#aaffbb'; ctx.font = "bold 8px 'Courier New'";
+  ctx.globalAlpha = 0.7;
+  ctx.fillText('BUNKER', cx, rects[0].y + rects[0].h * 0.7);
+  ctx.fillStyle = '#ffff88'; ctx.font = "bold 8px 'Courier New'";
+  ctx.globalAlpha = 0.55 + 0.25 * Math.sin(Date.now() * 0.005 + b.x);
+  ctx.fillText('600 PTS', cx, rects[rects.length - 1].y - 12);
+  ctx.globalAlpha = 1;
+
+  // Damage state
+  if (b.damaged && rects.length > 0) {
+    const seed = b.crackSeed;
+    const top = rects[rects.length - 1].y;
+    ctx.strokeStyle = '#aaffbb'; ctx.lineWidth = 0.8; ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(b.x + b.baseW * (0.3 + seed * 0.2), top);
+    ctx.lineTo(b.x + b.baseW * (0.5 + seed * 0.1), top + 18);
+    ctx.stroke(); ctx.globalAlpha = 1;
+    const flicker = 0.4 + 0.6 * Math.random();
+    ctx.globalAlpha = flicker * 0.7;
+    ctx.fillStyle = '#ff4400';
+    ctx.beginPath(); ctx.arc(b.x + b.baseW * 0.5, top - 3, 4 + Math.random() * 4, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  ctx.textAlign = 'left';
+}
+
 function drawBuildings() {
   for (const b of buildings) {
+    if (b.type === 'fuel')  { drawFuelDepot(b); continue; }
+    if (b.type === 'radar') { drawRadarTower(b); continue; }
+    if (b.type === 'bunker'){ drawBunker(b); continue; }
+
     const cx  = b.x + b.baseW / 2;
     let curY  = GROUND_Y;
     let topY  = GROUND_Y;
@@ -2869,7 +3143,7 @@ function update() {
   // Spawn from right
   const last = buildings[buildings.length - 1];
   if (!last || last.x + last.baseW < W + 120) {
-    const nx = (last ? last.x + last.baseW : W + 60) + 26 + (Math.random() * 34 | 0);
+    const nx = (last ? last.x + last.baseW : W + 60) + 80 + (Math.random() * 80 | 0);
     buildings.push(mkBuilding(nx));
   }
 
@@ -2901,22 +3175,28 @@ function update() {
 
           b.hp--;
           levelHits++;
+          // Points per type
+          const collapseBase = b.type === 'fuel'   ? 400 :
+                               b.type === 'radar'  ? 350 :
+                               b.type === 'bunker' ? 600 : 250;
+          const damageBase   = b.type === 'bunker' ? 150 : 100;
           if (b.hp <= 0) {
             // Full collapse — big explosion on each remaining layer
             const rects = layerRects(b);
             rects.forEach(lr => mkExplosion(lr.x + lr.w/2, lr.y + lr.h/2, 1.1));
             mkExplosion(bm.x, bm.y, 1.6);
             buildings.splice(bi, 1);
-            const pts = 500 * mult;
+            const pts = collapseBase * mult;
             score += pts;
-            addScorePopup(bm.x, bm.y - 10, mult > 1 ? `COMBO x${mult}! +${pts}` : `+${pts}`, mult > 1 ? '#ffff44' : '#00ff41');
+            const label = b.type !== 'building' ? `${b.type.toUpperCase()}! +${pts}` : (mult > 1 ? `COMBO x${mult}! +${pts}` : `+${pts}`);
+            addScorePopup(bm.x, bm.y - 10, label, mult > 1 || b.type !== 'building' ? '#ffff44' : '#00ff41');
           } else {
             // First hit — damage state
             b.damaged = true;
             b.shade = '#0a0a00';
             b.layers.splice(r.i, 1); // remove hit layer
             mkExplosion(bm.x, bm.y, 1.0);
-            const pts = 200 * mult;
+            const pts = damageBase * mult;
             score += pts;
             addScorePopup(bm.x, bm.y - 10, mult > 1 ? `COMBO x${mult}! +${pts}` : `+${pts}`, mult > 1 ? '#ffff44' : '#aaffbb');
           }
