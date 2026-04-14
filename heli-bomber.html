@@ -856,7 +856,9 @@ let shakeX = 0, shakeY = 0, shakeMag = 0;
 let explosions = [];
 let debris = [];
 let scorePopups = [];
-let fanfareFlash = 0; // frames of white flash on level complete
+let fanfareFlash = 0;    // frames of white flash on level complete
+let outOfBombsFlash = 0; // counts up while "OUT OF BOMBS" banner is shown
+let outOfBombsTriggered = false;
 
 // ── Combo system ──────────────────────────────────────────────────────────────
 let comboCount = 0, comboTimer = 0;
@@ -3051,6 +3053,13 @@ function updateBombHUD() {
   el.textContent = bombsLeft;
   wrap.classList.toggle('warn',  bombsLeft > 0 && bombsLeft <= 3);
   wrap.classList.toggle('empty', bombsLeft === 0);
+
+  // Trigger out-of-bombs sequence once per level
+  if (bombsLeft === 0 && !outOfBombsTriggered && gameRunning && !levelDone) {
+    outOfBombsTriggered = true;
+    outOfBombsFlash = 1;
+    setTimeout(() => { if (gameRunning) handleLevelComplete(); }, 2000);
+  }
 }
 
 function startLevel() {
@@ -3062,7 +3071,9 @@ function startLevel() {
   comboTimer     = 0;
   debris         = [];
   scorePopups    = [];
-  bombsLeft      = BOMBS_PER_LEVEL[currentLevel] || 12;
+  bombsLeft            = BOMBS_PER_LEVEL[currentLevel] || 12;
+  outOfBombsFlash      = 0;
+  outOfBombsTriggered  = false;
   document.getElementById('hud-timer').textContent = LEVEL_DIST + 'm';
   updateBombHUD();
 }
@@ -3294,6 +3305,7 @@ function update() {
   updateStorm();
   updateMines();
   if (fanfareFlash > 0) fanfareFlash--;
+  if (outOfBombsFlash > 0) outOfBombsFlash++;
   updateExplosions();
 
   // Sparks
@@ -3339,6 +3351,38 @@ function render() {
     ctx.globalAlpha = (fanfareFlash / 18) * 0.45;
     ctx.fillStyle = '#aaffcc';
     ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  // Out-of-bombs banner (shows for ~2 seconds then level advances)
+  if (outOfBombsFlash > 0) {
+    const t = outOfBombsFlash;
+    // Red screen tint
+    ctx.globalAlpha = Math.min(t / 8, 1) * 0.28;
+    ctx.fillStyle = '#ff2200';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+
+    // Banner box
+    const bw = 380, bh = 64;
+    const bx = (W - bw) / 2, by = H / 2 - bh / 2 - 20;
+    ctx.globalAlpha = Math.min(t / 6, 1);
+    ctx.fillStyle = '#110000';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = '#ff2200'; ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    // Text — blink every 14 frames
+    if ((t / 14 | 0) % 2 === 0) {
+      ctx.fillStyle = '#ff4400';
+      ctx.font = "bold 28px 'Courier New'";
+      ctx.textAlign = 'center';
+      ctx.fillText('NO BOMBS REMAINING', W / 2, by + 26);
+      ctx.font = "13px 'Courier New'";
+      ctx.fillStyle = '#ff8866';
+      ctx.fillText('ADVANCING TO NEXT LEVEL...', W / 2, by + 50);
+      ctx.textAlign = 'left';
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -3388,7 +3432,9 @@ function startGame() {
   comboCount = 0; comboTimer = 0;
   levelStartScore = 0; levelHits = 0;
   fanfareFlash = 0;
-  bombsLeft = BOMBS_PER_LEVEL[currentLevel] || 12;
+  bombsLeft           = BOMBS_PER_LEVEL[currentLevel] || 12;
+  outOfBombsFlash     = 0;
+  outOfBombsTriggered = false;
   bgScrollX = 0;
   finishLineX = W + LEVEL_DIST;
   levelDone = false;
