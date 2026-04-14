@@ -546,6 +546,23 @@ function getAudio() {
   return audioCtx;
 }
 
+// iOS requires AudioContext to be created/resumed inside a direct user-gesture
+// handler. We attach listeners to the first touch or click on the page and play
+// a silent buffer — after that the context stays unlocked for the whole session.
+function _unlockAudio() {
+  const ac = getAudio();
+  // play a zero-length silent buffer to satisfy Safari's gesture requirement
+  const buf = ac.createBuffer(1, 1, 22050);
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  src.connect(ac.destination);
+  src.start(0);
+  ac.resume();
+}
+document.addEventListener('touchstart', _unlockAudio, { once: true, passive: true });
+document.addEventListener('touchend',   _unlockAudio, { once: true, passive: true });
+document.addEventListener('click',      _unlockAudio, { once: true });
+
 // Generic synth helper
 function playTone({ freq = 440, type = 'sine', gain = 0.4, dur = 0.3,
                     freqEnd = null, attack = 0.01, decay = 0.05,
