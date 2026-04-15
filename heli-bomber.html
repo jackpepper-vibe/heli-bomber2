@@ -1666,28 +1666,34 @@ function drawBalloons() {
     ctx.stroke();
   }
 
-  // Birds (V-shape wings, flapping)
+  // Birds (yellow, V-shape wings, flapping)
   for (const b of birds) {
-    const s = b.size;
-    const wingAng = Math.sin(b.flap) * 0.55;   // wing flap
+    const s = b.size * 1.6;
+    const wingAng = Math.sin(b.flap) * 0.6;
     ctx.save();
     ctx.translate(b.x, b.y);
-    ctx.strokeStyle = '#111111';
-    ctx.lineWidth = 2;
-    // Body dot
-    ctx.fillStyle = '#222222';
+    ctx.strokeStyle = '#ffdd00';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 3;
+    // Body
+    ctx.fillStyle = '#ffdd00';
     ctx.beginPath();
-    ctx.arc(0, 0, 2 * s, 0, Math.PI * 2);
+    ctx.arc(0, 0, 3 * s, 0, Math.PI * 2);
+    ctx.fill();
+    // Beak
+    ctx.fillStyle = '#ff8800';
+    ctx.beginPath();
+    ctx.moveTo(-3 * s, 0); ctx.lineTo(-7 * s, -1); ctx.lineTo(-7 * s, 1); ctx.closePath();
     ctx.fill();
     // Left wing
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo(-10 * s, -6 * s * Math.cos(wingAng));
+    ctx.lineTo(-12 * s, -8 * s * Math.cos(wingAng));
     ctx.stroke();
     // Right wing
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo( 10 * s, -6 * s * Math.cos(wingAng));
+    ctx.lineTo( 12 * s, -8 * s * Math.cos(wingAng));
     ctx.stroke();
     ctx.restore();
   }
@@ -1737,6 +1743,8 @@ function mkEnemyHeli(x) {
   const type = roll < 0.45 ? ENEMY_HELI_TYPES[0] :
                roll < 0.80 ? ENEMY_HELI_TYPES[1] :
                              ENEMY_HELI_TYPES[2];
+  // Only ~60% of scouts actually fire missiles — keeps the threat occasional
+  const canFire = type.canFire && Math.random() < 0.6;
   return {
     x, y: 80 + Math.random() * (GROUND_Y - 160),
     vx: -(type.vxBase + Math.random() * 0.8),
@@ -1744,7 +1752,8 @@ function mkEnemyHeli(x) {
     rotorA: Math.random() * Math.PI * 2,
     type,
     hp: type.hp,
-    fireCooldown: 120 + Math.floor(Math.random() * 120),
+    canFire,
+    fireCooldown: 40 + Math.floor(Math.random() * 60),
   };
 }
 
@@ -1772,7 +1781,7 @@ function updateEnemyHelis() {
     if (e.x + 120 < 0) { enemyHelis.splice(i, 1); continue; }
 
     // Scouts fire missiles at player (only if on-screen)
-    if (e.type.canFire && e.x < W - 40 && e.x > 20) {
+    if (e.canFire && e.x < W - 40 && e.x > 20) {
       e.fireCooldown--;
       if (e.fireCooldown <= 0) {
         const dx = heli.x - e.x, dy = heli.y - e.y;
@@ -1786,7 +1795,7 @@ function updateEnemyHelis() {
           trail: [],
         });
         sndMissileLaunch();
-        e.fireCooldown = 260 + Math.floor(Math.random() * 180);
+        e.fireCooldown = 140 + Math.floor(Math.random() * 120);
       }
     }
 
@@ -2272,7 +2281,9 @@ function seedBuildings() {
 // ── Power-ups ────────────────────────────────────────────────────────────────
 function maybeSpawnPowerUp(x, y) {
   if (Math.random() > POWER_SPAWN_CHANCE) return;
-  const type = POWER_TYPES[Math.floor(Math.random() * POWER_TYPES.length)];
+  // SHIELD is only useful on levels with incoming hits (3+). On L1/L2 drop it from the pool.
+  const pool = (currentLevel <= 2) ? POWER_TYPES.filter(t => t !== 'SHIELD') : POWER_TYPES;
+  const type = pool[Math.floor(Math.random() * pool.length)];
   // Spawn at ground/sea level so the balloon has room to rise into the heli's path
   const startY = (currentLevel === 9 ? SEA_Y : GROUND_Y) - 6;
   powerUps.push({
@@ -2966,6 +2977,11 @@ function updateMissiles() {
     if (Math.sqrt(dx * dx + dy * dy) < MSL_HIT_DIST * selectedModel.hitMult) {
       mkSparks(m.x, m.y);
       mkSparks(m.x, m.y);
+      if (activePowers.shield > 0) {
+        activePowers.shield = Math.max(0, activePowers.shield - 60 * 3);
+        missileFlashTimer = 6;
+        return false;
+      }
       score = Math.max(0, score - 200);
       sndHeliHit();
       document.getElementById('hud-score').textContent = score.toLocaleString();
