@@ -1,4 +1,4 @@
-const CACHE = 'heli-bomber-v6';
+const CACHE = 'heli-bomber-v7';
 const ASSETS = [
   '/',
   '/heli-bomber.html',
