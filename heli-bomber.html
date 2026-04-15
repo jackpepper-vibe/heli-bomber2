@@ -544,7 +544,7 @@
 <div id="game-screen">
   <div id="hud">
     <span>PILOT: <strong id="hud-name">ACE</strong></span>
-    <span id="hud-level">LVL <strong id="hud-level-num">1</strong> / 8</span>
+    <span id="hud-level">LVL <strong id="hud-level-num">1</strong> / 9</span>
     <span id="hud-timer">----m</span>
     <span id="hud-bombs-wrap">BOMBS: <strong id="hud-bombs">12</strong></span>
     <span>SCORE: <strong id="hud-score">0</strong></span>
@@ -1011,8 +1011,22 @@ function seedBalloons() {
   }
 }
 
+// Birds — hazardous obstacles in Level 4 (cannot be shot, -500 pts on hit)
+let birds = [];
+const BIRD_COUNT = 4;
+function mkBird() {
+  return {
+    x:     W + 40 + Math.random() * 180,
+    y:     70 + Math.random() * (GROUND_Y - 180),
+    vx:    -(2.2 + Math.random() * 1.6),
+    phase: Math.random() * Math.PI * 2,
+    flap:  0,
+    size:  0.9 + Math.random() * 0.5,
+  };
+}
+
 function updateBalloons() {
-  if (currentLevel !== 4) { balloons = []; if (currentLevel !== 6) fwdMissiles = []; return; }
+  if (currentLevel !== 4) { balloons = []; birds = []; if (currentLevel !== 6) fwdMissiles = []; return; }
 
   const spd = SCROLL + (currentLevel - 1) * 0.5;
 
@@ -1027,6 +1041,34 @@ function updateBalloons() {
   balloons = balloons.filter(b => b.x + b.r > -20);
   while (balloons.length < BALLOON_COUNT) {
     balloons.push(mkBalloon());
+  }
+
+  // Birds — drift left faster than scroll, gentle vertical bob; not shootable
+  while (birds.length < BIRD_COUNT) {
+    const last = birds[birds.length - 1];
+    const b = mkBird();
+    b.x = (last ? last.x : W) + 180 + Math.random() * 260;
+    birds.push(b);
+  }
+  for (let i = birds.length - 1; i >= 0; i--) {
+    const b = birds[i];
+    b.x += b.vx;
+    b.phase += 0.06;
+    b.flap  += 0.35;
+    b.y    += Math.sin(b.phase) * 0.7;
+    if (b.x + 20 < 0) { birds.splice(i, 1); continue; }
+    // Collision with heli → -500, bird passes through (no kill)
+    const hs = selectedModel.scale;
+    const dx = heli.x - b.x, dy = heli.y - b.y;
+    if (Math.abs(dx) < 24 * hs && Math.abs(dy) < 16 * hs) {
+      mkSparks(b.x, b.y); mkSparks(heli.x, heli.y);
+      score = Math.max(0, score - 500);
+      sndHeliHit();
+      document.getElementById('hud-score').textContent = score.toLocaleString();
+      addScorePopup(heli.x, heli.y - 16, 'BIRD STRIKE! -500', '#ff5566');
+      // Push bird off-screen to avoid re-hits
+      birds.splice(i, 1);
+    }
   }
 
   // Forward missiles (player shots)
@@ -1073,6 +1115,7 @@ const CAVE_CEILING    = 60;    // min ceiling height (px from top)
 const CAVE_FLOOR      = H - 60; // max floor pos
 
 let caveFormations = [];  // { x, type:'stag'|'stal', layers:[{h,w}], totalH, baseW }
+let caveRocks       = [];  // indestructible pillar rocks — any hit ends the level
 let caveFwdMissiles = []; // player-fired shots in level 5
 let caveScrollX     = 0;  // for cave ceiling/floor wave
 let caveCrashed     = false;
@@ -1100,6 +1143,7 @@ function mkFormation(startX) {
 
 function seedCave() {
   caveFormations   = [];
+  caveRocks        = [];
   caveFwdMissiles  = [];
   caveCrashed      = false;
   caveScrollX      = 0;
@@ -1113,10 +1157,23 @@ function seedCave() {
     caveFormations.push(mkFormation(fx));
     fx += 70 + Math.floor(Math.random() * 60);
   }
+  // Seed a few indestructible rock pillars spaced through the whole level
+  // Count ~6 over ~LEVEL_DIST scroll — sparse but deadly
+  let rx = W + 800;
+  for (let i = 0; i < 6; i++) {
+    caveRocks.push({
+      x: rx,
+      w: 34 + Math.floor(Math.random() * 14),
+      centerFrac: 0.35 + Math.random() * 0.30,    // vertical center within cave (0=ceil, 1=floor)
+      halfH: 50 + Math.floor(Math.random() * 30),
+      seed: Math.random(),
+    });
+    rx += 650 + Math.floor(Math.random() * 400);
+  }
 }
 
 function updateCave() {
-  if (currentLevel !== 5) { caveFormations = []; caveFwdMissiles = []; return; }
+  if (currentLevel !== 5) { caveFormations = []; caveRocks = []; caveFwdMissiles = []; return; }
   if (caveCrashed) return;
 
   const spd = SCROLL + (currentLevel - 1) * 0.5;
@@ -1126,7 +1183,7 @@ function updateCave() {
   if (!levelDone && caveScrollX >= LEVEL_DIST) {
     levelDone = true;
     if (!caveCrashed) {
-      score += 10000;
+      score += 5000;
       document.getElementById('hud-score').textContent = score.toLocaleString();
       caveBonusActive = true;
       sndCaveBonus();
@@ -1147,6 +1204,24 @@ function updateCave() {
   const nextX = (last ? last.x + last.baseW : W) + 70 + Math.floor(Math.random() * 60);
   if (!last || last.x < W + 200) {
     caveFormations.push(mkFormation(nextX));
+  }
+
+  // Move + cull rocks (no respawn — finite set per level)
+  for (const r of caveRocks) r.x -= spd;
+  caveRocks = caveRocks.filter(r => r.x + r.w > -40);
+
+  // Rock collision: missiles pass through harmlessly; heli crashes
+  for (const r of caveRocks) {
+    const { ceil: rc, floor: rf } = caveProfile(caveScrollX + r.x - W / 2);
+    const cy  = rc + (rf - rc) * r.centerFrac;
+    const top = cy - r.halfH, bot = cy + r.halfH;
+    const hs  = selectedModel.scale;
+    const hx1 = heli.x - 38 * hs, hx2 = heli.x + 32 * hs;
+    const hy1 = heli.y - 22 * hs, hy2 = heli.y + 24 * hs;
+    if (hx2 > r.x && hx1 < r.x + r.w && hy2 > top && hy1 < bot) {
+      triggerCaveCrash();
+      return;
+    }
   }
 
   // Heli boundary check (cave ceiling & floor)
@@ -1416,6 +1491,48 @@ function drawCave() {
   ctx.lineWidth = 2;
   ctx.stroke();
 
+  // ── Draw indestructible rock pillars ──────────────────────────────────────
+  for (const r of caveRocks) {
+    const { ceil: rc, floor: rf } = caveProfile(caveScrollX + r.x - W / 2);
+    const cy  = rc + (rf - rc) * r.centerFrac;
+    const top = cy - r.halfH, bot = cy + r.halfH;
+    // Warning aura — pulses red so rocks stand out from stalactites
+    ctx.globalAlpha = 0.25 + 0.15 * Math.sin(Date.now() * 0.006 + r.seed * 6);
+    ctx.fillStyle = '#ff3300';
+    ctx.fillRect(r.x - 6, top - 6, r.w + 12, (bot - top) + 12);
+    ctx.globalAlpha = 1;
+    // Body — dark with jagged edges
+    ctx.fillStyle = '#1a0800';
+    ctx.strokeStyle = '#ff5522';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const jag = 4;
+    ctx.moveTo(r.x, top);
+    for (let y = top; y <= bot; y += 8) {
+      const off = ((y + r.seed * 100) % 16) > 8 ? jag : -jag;
+      ctx.lineTo(r.x + off, y);
+    }
+    ctx.lineTo(r.x, bot);
+    ctx.lineTo(r.x + r.w, bot);
+    for (let y = bot; y >= top; y -= 8) {
+      const off = ((y + r.seed * 100) % 16) > 8 ? -jag : jag;
+      ctx.lineTo(r.x + r.w + off, y);
+    }
+    ctx.lineTo(r.x + r.w, top);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Hazard hatching
+    ctx.strokeStyle = '#ff3300';
+    ctx.lineWidth = 1;
+    for (let y = top + 6; y < bot; y += 10) {
+      ctx.beginPath();
+      ctx.moveTo(r.x + 4, y);
+      ctx.lineTo(r.x + r.w - 4, y);
+      ctx.stroke();
+    }
+  }
+
   // ── Draw formations ───────────────────────────────────────────────────────
   for (const f of caveFormations) {
     if (f.layers.length === 0) continue;
@@ -1549,6 +1666,32 @@ function drawBalloons() {
     ctx.stroke();
   }
 
+  // Birds (V-shape wings, flapping)
+  for (const b of birds) {
+    const s = b.size;
+    const wingAng = Math.sin(b.flap) * 0.55;   // wing flap
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.strokeStyle = '#111111';
+    ctx.lineWidth = 2;
+    // Body dot
+    ctx.fillStyle = '#222222';
+    ctx.beginPath();
+    ctx.arc(0, 0, 2 * s, 0, Math.PI * 2);
+    ctx.fill();
+    // Left wing
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-10 * s, -6 * s * Math.cos(wingAng));
+    ctx.stroke();
+    // Right wing
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo( 10 * s, -6 * s * Math.cos(wingAng));
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // Draw forward missiles
   ctx.fillStyle = '#00ff41';
   for (const m of fwdMissiles) {
@@ -1574,31 +1717,46 @@ function drawBalloons() {
 // ── Level 6: Enemy Helicopters ───────────────────────────────────────────────
 function seedEnemyHelis() {
   enemyHelis = [];
+  enemyMissiles = [];
   for (let i = 0; i < 5; i++) {
-    enemyHelis.push({
-      x: W + 80 + i * 160,
-      y: 80 + Math.random() * (GROUND_Y - 160),
-      vx: -(2.8 + Math.random() * 1.4),
-      vy: 0,
-      rotorA: Math.random() * Math.PI * 2,
-    });
+    enemyHelis.push(mkEnemyHeli(W + 80 + i * 160));
   }
 }
 
+// Enemy heli types mirror the player models (scout/assault/gunship)
+const ENEMY_HELI_TYPES = [
+  { id:0, scale:0.72, vxBase:3.6, hitR:38, hp:1, pts:400, canFire:true  }, // Scout — fast, fires missiles
+  { id:1, scale:1.0,  vxBase:2.8, hitR:50, hp:2, pts:300, canFire:false }, // Assault — balanced
+  { id:2, scale:1.42, vxBase:1.8, hitR:68, hp:3, pts:500, canFire:false }, // Gunship — slow & tough
+];
+
+let enemyMissiles = [];  // missiles fired by scout helis
+
+function mkEnemyHeli(x) {
+  const roll = Math.random();
+  const type = roll < 0.45 ? ENEMY_HELI_TYPES[0] :
+               roll < 0.80 ? ENEMY_HELI_TYPES[1] :
+                             ENEMY_HELI_TYPES[2];
+  return {
+    x, y: 80 + Math.random() * (GROUND_Y - 160),
+    vx: -(type.vxBase + Math.random() * 0.8),
+    vy: 0,
+    rotorA: Math.random() * Math.PI * 2,
+    type,
+    hp: type.hp,
+    fireCooldown: 120 + Math.floor(Math.random() * 120),
+  };
+}
+
 function updateEnemyHelis() {
-  if (currentLevel !== 6) { enemyHelis = []; return; }
+  if (currentLevel !== 6) { enemyHelis = []; enemyMissiles = []; return; }
   const spd = SCROLL + (currentLevel - 1) * 0.5;
 
   // Replenish
   while (enemyHelis.length < 5) {
     const last = enemyHelis[enemyHelis.length - 1];
-    enemyHelis.push({
-      x: (last ? last.x : W) + 100 + Math.random() * 120,
-      y: 80 + Math.random() * (GROUND_Y - 160),
-      vx: -(2.8 + Math.random() * 1.4),
-      vy: 0,
-      rotorA: Math.random() * Math.PI * 2,
-    });
+    const nx = (last ? last.x : W) + 120 + Math.random() * 180;
+    enemyHelis.push(mkEnemyHeli(nx));
   }
 
   for (let i = enemyHelis.length - 1; i >= 0; i--) {
@@ -1613,17 +1771,44 @@ function updateEnemyHelis() {
 
     if (e.x + 120 < 0) { enemyHelis.splice(i, 1); continue; }
 
+    // Scouts fire missiles at player (only if on-screen)
+    if (e.type.canFire && e.x < W - 40 && e.x > 20) {
+      e.fireCooldown--;
+      if (e.fireCooldown <= 0) {
+        const dx = heli.x - e.x, dy = heli.y - e.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const spdM = 5.5;
+        enemyMissiles.push({
+          x: e.x, y: e.y,
+          vx: (dx/dist) * spdM,
+          vy: (dy/dist) * spdM,
+          angle: Math.atan2(dy, dx),
+          trail: [],
+        });
+        sndMissileLaunch();
+        e.fireCooldown = 260 + Math.floor(Math.random() * 180);
+      }
+    }
+
     // Forward missile hits enemy heli
     for (let mi = fwdMissiles.length - 1; mi >= 0; mi--) {
       const m = fwdMissiles[mi];
       const dx = m.x - e.x, dy2 = m.y - e.y;
-      if (Math.sqrt(dx*dx + dy2*dy2) < 46) {
-        mkSparks(e.x, e.y); mkSparks(e.x, e.y);
-        score += 300;
-        sndBombHit();
-        document.getElementById('hud-score').textContent = score.toLocaleString();
-        enemyHelis.splice(i, 1);
+      if (Math.sqrt(dx*dx + dy2*dy2) < e.type.hitR) {
+        mkSparks(e.x, e.y);
+        e.hp--;
         fwdMissiles.splice(mi, 1);
+        if (e.hp <= 0) {
+          mkExplosion(e.x, e.y, 1.3);
+          mkSparks(e.x, e.y);
+          const doub = activePowers.score2x > 0 ? 2 : 1;
+          score += e.type.pts * doub;
+          sndBombHit();
+          document.getElementById('hud-score').textContent = score.toLocaleString();
+          enemyHelis.splice(i, 1);
+        } else {
+          sndBombHit();
+        }
         break;
       }
     }
@@ -1642,6 +1827,30 @@ function updateEnemyHelis() {
 
   // Move forward missiles for level 6
   fwdMissiles = fwdMissiles.filter(m => { m.x += m.vx; return m.x < W + 20; });
+
+  // Enemy missiles — travel toward player, -500 on hit
+  const hs = selectedModel.scale;
+  enemyMissiles = enemyMissiles.filter(m => {
+    m.trail.push({ x: m.x, y: m.y });
+    if (m.trail.length > 10) m.trail.shift();
+    m.x += m.vx; m.y += m.vy;
+    if (m.x < -30 || m.x > W + 30 || m.y < -30 || m.y > GROUND_Y + 10) return false;
+    const dx = m.x - heli.x, dy = m.y - heli.y;
+    if (Math.sqrt(dx*dx + dy*dy) < 22 * hs) {
+      if (activePowers.shield > 0) {
+        activePowers.shield = Math.max(0, activePowers.shield - 60 * 3);
+        mkSparks(m.x, m.y); sndBombHit();
+        return false;
+      }
+      mkSparks(heli.x, heli.y); mkSparks(heli.x, heli.y);
+      score = Math.max(0, score - 500);
+      sndHeliHit();
+      document.getElementById('hud-score').textContent = score.toLocaleString();
+      addScorePopup(heli.x, heli.y - 16, '-500', '#ff4444');
+      return false;
+    }
+    return true;
+  });
 }
 
 function drawEnemyHelis() {
@@ -1650,10 +1859,16 @@ function drawEnemyHelis() {
     ctx.save();
     ctx.translate(e.x, e.y);
     ctx.scale(-1, 1);
-    drawHeliModel(ctx, 0, 0, 0.85, e.rotorA);
+    drawHeliModel(ctx, 0, 0, e.type.scale, e.rotorA);
     ctx.restore();
+    // Damage indicator for multi-hp enemies
+    if (e.hp < e.type.hp) {
+      ctx.fillStyle = 'rgba(255,80,0,0.55)';
+      const frac = e.hp / e.type.hp;
+      ctx.fillRect(e.x - 18, e.y - 30, 36 * (1 - frac), 3);
+    }
   }
-  // Forward missiles
+  // Player forward missiles
   for (const m of fwdMissiles) {
     ctx.save();
     ctx.translate(m.x, m.y);
@@ -1666,6 +1881,29 @@ function drawEnemyHelis() {
     ctx.strokeStyle = '#005a18'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(-16, 0); ctx.stroke();
     ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+  // Enemy missiles (red, contrail)
+  for (const m of enemyMissiles) {
+    for (let i = 0; i < m.trail.length; i++) {
+      const t = m.trail[i];
+      const a = (i / m.trail.length) * 0.55;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#ffaa44';
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 2 * (i / m.trail.length + 0.3), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.rotate(m.angle);
+    ctx.fillStyle = '#ff4400';
+    ctx.beginPath();
+    ctx.moveTo(8, 0); ctx.lineTo(-4, -3); ctx.lineTo(-4, 3);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffdd44';
+    ctx.fillRect(-8, -2, 4, 4);
     ctx.restore();
   }
 }
@@ -1820,17 +2058,46 @@ function updateMines() {
     }
     if (i >= mines.length) continue;
 
-    // Heli hits mine
+    // Heli hits mine — catastrophic: helicopter destroyed, level ends
     const dx2 = heli.x - mines[i].x, dy2 = heli.y - mines[i].y;
     if (Math.sqrt(dx2*dx2 + dy2*dy2) < mines[i].r + 20 * selectedModel.hitMult) {
-      mkSparks(mines[i].x, mines[i].y); mkSparks(mines[i].x, mines[i].y);
-      score = Math.max(0, score - 300);
-      sndCrash();
-      document.getElementById('hud-score').textContent = score.toLocaleString();
-      mineFlashTimer = 12;
+      if (activePowers.shield > 0) {
+        // Shield absorbs — destroys mine, consumes shield chunk
+        activePowers.shield = Math.max(0, activePowers.shield - 60 * 3);
+        mkSparks(mines[i].x, mines[i].y); mkSparks(mines[i].x, mines[i].y);
+        mkExplosion(mines[i].x, mines[i].y, 1.2);
+        sndBombHit();
+        mines.splice(i, 1);
+        continue;
+      }
+      triggerMineCrash(mines[i].x, mines[i].y);
       mines.splice(i, 1);
+      return;
     }
   }
+}
+
+let mineCrashed = false;
+function triggerMineCrash(mx, my) {
+  if (mineCrashed || levelDone) return;
+  mineCrashed = true;
+  levelDone = true;
+  mkExplosion(heli.x, heli.y, 2.6);
+  mkExplosion(mx, my, 1.8);
+  for (let i = 0; i < 12; i++) mkSparks(heli.x + (Math.random()-0.5)*50, heli.y + (Math.random()-0.5)*40);
+  mineFlashTimer = 20;
+  score = Math.max(0, score - 500);
+  document.getElementById('hud-score').textContent = score.toLocaleString();
+  sndCrash();
+  setTimeout(() => {
+    if (currentLevel < TOTAL_LEVELS) {
+      currentLevel++;
+      document.getElementById('hud-level-num').textContent = currentLevel;
+      showLevelTransition(currentLevel, true);
+    } else {
+      endGame();
+    }
+  }, 2400);
 }
 
 function drawMines() {
@@ -3615,7 +3882,7 @@ function handleLevelComplete() {
   } else {
     // Final level done — cave bonus if survived
     if (currentLevel === 5 && !caveCrashed) {
-      score += 10000;
+      score += 5000;
       document.getElementById('hud-score').textContent = score.toLocaleString();
       caveBonusActive = true;
       sndCaveBonus();
@@ -3634,8 +3901,10 @@ function showLevelTransition(level, isNext) {
   obstacles = [];  // clear obstacles between levels
   missiles  = [];
   balloons  = [];
+  birds     = [];
   fwdMissiles = [];
   enemyHelis = [];
+  enemyMissiles = [];
   stormMissiles = [];
   mines = [];
   ships = [];
@@ -3643,6 +3912,7 @@ function showLevelTransition(level, isNext) {
   powerUps = [];
   activePowers = { shield: 0, score2x: 0 };
   seaCrashed = false; seaCrashTimer = 0; seaCrashAlpha = 0; seaMissileTimer = 140;
+  mineCrashed = false;
   if (level === 4) seedBalloons();
   if (level === 5) seedCave();
   if (level === 6) seedEnemyHelis();
@@ -4030,8 +4300,10 @@ function startGame() {
   obstacles    = [];
   missiles     = [];
   balloons        = [];
+  birds           = [];
   fwdMissiles     = [];
   caveFormations  = [];
+  caveRocks       = [];
   caveFwdMissiles = [];
   caveCrashed      = false;
   caveGameOverTimer = 0;
@@ -4040,11 +4312,13 @@ function startGame() {
   caveBonusAlpha    = 0;
   missileFlashTimer = 0;
   enemyHelis        = [];
+  enemyMissiles     = [];
   windX = 0; windY = 0; windTimer = 0;
   stormMissiles = []; stormMissileTimer = 100; stormMissileFlash = 0;
   mines = []; mineFlashTimer = 0;
   ships = []; seaMissiles = []; seaMissileTimer = 140;
   seaCrashed = false; seaCrashTimer = 0; seaCrashAlpha = 0;
+  mineCrashed = false;
   powerUps = []; activePowers = { shield: 0, score2x: 0 };
   for (const l of LAUNCHER_POSITIONS) { l.cooldown = 90 + Math.floor(Math.random()*120); }
   heli.x       = 210;
