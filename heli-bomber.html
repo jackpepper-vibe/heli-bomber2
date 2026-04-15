@@ -1192,17 +1192,16 @@ function updateCave() {
 
       if (m.x >= cx - hw - 4 && m.x <= cx + hw + 4 &&
           m.y >= fy - 4 && m.y <= fy + fh + 4) {
-        // Remove one layer (tip for stalactite, top for stalagmite)
-        if (f.layers.length > 0) {
-          f.layers.shift();
-          mkSparks(m.x, m.y);
-          score += 200;
-          sndBombHit();
-          document.getElementById('hud-score').textContent = score.toLocaleString();
+        // One shot destroys the whole formation
+        const layerCount = f.layers.length;
+        mkExplosion(cx, fy + fh / 2, 1.4);
+        for (let i = 0; i < 3; i++) {
+          mkSparks(cx + (Math.random()-0.5)*20, fy + Math.random()*fh);
         }
-        if (f.layers.length === 0) {
-          caveFormations.splice(fi, 1);
-        }
+        score += 200 * Math.max(1, layerCount);
+        sndBombHit();
+        document.getElementById('hud-score').textContent = score.toLocaleString();
+        caveFormations.splice(fi, 1);
         return false; // remove missile
       }
     }
