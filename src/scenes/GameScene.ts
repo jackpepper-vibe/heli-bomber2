@@ -752,24 +752,24 @@ export class GameScene {
     // Buildings
     if (isCityLevel) this.buildingRenderer.draw(this.buildings);
 
-    // Ships
-    if (isSeaLevel) this.shipRenderer.draw(this.ships, this.seaMissiles);
+    // Ships — always call so g.clear() runs; pass empty array when inactive
+    this.shipRenderer.draw(isSeaLevel ? this.ships : [], isSeaLevel ? this.seaMissiles : []);
 
-    // Mines
-    if (lv === 8) this.mineRenderer.draw(this.mines);
+    // Mines — always call so g.clear() runs
+    this.mineRenderer.draw(lv === 8 ? this.mines : []);
 
     // Obstacles (level 2) — drawn inline in gfx
     this._drawObstacles();
 
-    // Missiles + launchers
+    // Missiles + launchers — always call so g.clear() runs
     this.missileRenderer.draw(this.missiles, this.launchers, this.fwdMissiles, lv);
     if (lv === 7) this.missileRenderer.draw(this.stormMissiles, [], [], lv);
 
-    // Enemy helis
-    if (lv === 6) this.enemyHeliRenderer.draw(this.enemyHelis, this.enemyMissiles);
+    // Enemy helis — always call so g.clear() runs
+    this.enemyHeliRenderer.draw(lv === 6 ? this.enemyHelis : [], lv === 6 ? this.enemyMissiles : []);
 
-    // Balloons
-    if (lv === 4) this.balloonRenderer.draw(this.balloons, this.birds);
+    // Balloons — always call so g.clear() runs
+    this.balloonRenderer.draw(lv === 4 ? this.balloons : [], lv === 4 ? this.birds : []);
 
     // Bombs (city + mines + ships)
     this.bombRenderer.draw(this.bombs);
@@ -777,7 +777,8 @@ export class GameScene {
     // Power-ups
     this.powerUpRenderer.draw(this.powerUps, this.powers);
 
-    // Cave
+    // Cave — hide container entirely when not on level 5 so stale gfx never shows
+    this.cave.container.visible = (lv === 5);
     if (lv === 5) this.cave.draw(this.heli.x, this.heli.y);
 
     // Particles
@@ -837,11 +838,19 @@ export class GameScene {
     this.levelStartScore = this.score;
     this.comboCount = 0; this.comboTimer = 0;
     this.outOfBombsFlash = 0; this.outOfBombsTriggered = false;
+
+    // Always reset ALL entity arrays so nothing bleeds across level boundaries
     this.bombs = [];
     this.obstacles = [];
     this.missiles = [];
     this.fwdMissiles = [];
     this.stormMissiles = [];
+    this.balloons = []; this.birds = [];
+    this.enemyHelis = []; this.enemyMissiles = [];
+    this.mines = [];
+    this.ships = []; this.seaMissiles = [];
+    this.powerUps = [];
+
     this.stormMissileTimer = 100;
     this.seaMissileTimer = 140;
 
@@ -853,10 +862,10 @@ export class GameScene {
     const lv = this.currentLevel;
     if (lv === 4) { const s = seedBalloons(); this.balloons = s.balloons; this.birds = s.birds; }
     if (lv === 5) { this.cave.init(); }
-    if (lv === 6) { this.enemyHelis = seedEnemyHelis(); this.enemyMissiles = []; }
+    if (lv === 6) { this.enemyHelis = seedEnemyHelis(); }
     if (lv === 7) { this.storm.init(); }
     if (lv === 8) { this.mines = seedMines(); }
-    if (lv === 9) { this.ships = seedShips(); this.seaMissiles = []; }
+    if (lv === 9) { this.ships = seedShips(); }
 
     // Buildings for non-sea levels
     if (lv !== 9) this.buildings = seedBuildings();
