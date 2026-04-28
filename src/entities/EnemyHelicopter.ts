@@ -128,34 +128,92 @@ export class EnemyHeliRenderer {
   private _drawHeli(g: PIXI.Graphics, e: EnemyHeliData): void {
     const cx = e.x, cy = e.y, s = e.def.scale, rotA = e.rotorA;
 
-    // Mirror (enemy faces left) — approximated by drawing in reverse
-    // Rotor disc
-    g.circle(cx, cy - 22 * s, 55 * s).fill({ color: 0xff3300, alpha: 0.06 });
+    // Enemy faces LEFT — tail is on the right (cx + 76*s), nose on the left (cx - 65*s)
 
-    // Rotor
-    const rp = 0.65 + 0.25 * Math.sin(rotA * 8);
-    g.moveTo(cx - 55 * s, cy - 22 * s).lineTo(cx + 55 * s, cy - 22 * s)
-     .stroke({ width: 3 * s, color: 0xff3300, alpha: rp });
+    // ── Downwash glow ──────────────────────────────────────────────────────
+    g.ellipse(cx, cy + 28 * s, 42 * s, 14 * s).fill({ color: 0xff2200, alpha: 0.04 });
 
-    // Tail boom (mirrored)
-    g.poly([cx + 38 * s, cy - 2 * s, cx + 72 * s, cy - 1 * s, cx + 72 * s, cy + 5 * s, cx + 38 * s, cy + 7 * s])
-     .fill(0x1a0000).stroke({ width: 1 * s, color: 0xff3300 });
+    // ── Rotor disc glow ────────────────────────────────────────────────────
+    g.circle(cx, cy - 22 * s, 62 * s).fill({ color: 0xff3300, alpha: 0.04 });
+    g.circle(cx, cy - 22 * s, 50 * s).fill({ color: 0xff3300, alpha: 0.05 });
 
-    // Fuselage
-    g.roundRect(cx - 38 * s, cy - 12 * s, 76 * s, 24 * s, 4 * s)
+    // ── Rotor mast ─────────────────────────────────────────────────────────
+    g.moveTo(cx, cy - 12 * s).lineTo(cx, cy - 22 * s)
+     .stroke({ width: 2.5 * s, color: 0xff5500 });
+
+    // ── Rotor hub ──────────────────────────────────────────────────────────
+    g.circle(cx, cy - 22 * s, 4 * s).fill(0xff2200);
+    g.circle(cx, cy - 22 * s, 2.5 * s).fill(0xff6600);
+
+    // ── Main rotor blades (3 ghost layers for motion blur) ─────────────────
+    const rotorPulse = 0.7 + 0.25 * Math.sin(rotA * 8);
+    for (let ghost = 2; ghost >= 0; ghost--) {
+      const alpha = ghost === 0 ? rotorPulse : 0.15 * (3 - ghost);
+      const width = ghost === 0 ? 3.5 * s : 2 * s;
+      const offset = Math.PI * 0.12 * ghost;
+      const bx = Math.cos(rotA + offset) * 58 * s;
+      const by = Math.sin(rotA + offset) * 58 * s;
+      g.moveTo(cx - bx, cy - 22 * s - by).lineTo(cx + bx, cy - 22 * s + by)
+       .stroke({ width, color: ghost === 0 ? 0xff5500 : 0xff3300, alpha });
+      g.moveTo(cx - by, cy - 22 * s + bx).lineTo(cx + by, cy - 22 * s - bx)
+       .stroke({ width: width * 0.8, color: 0xff3300, alpha: alpha * 0.65 });
+    }
+
+    // ── Tail boom (right side — mirrored from player) ──────────────────────
+    g.poly([cx + 38 * s, cy - 2 * s, cx + 76 * s, cy - 0.5 * s,
+            cx + 76 * s, cy + 5 * s,  cx + 38 * s, cy + 8 * s])
+     .fill(0x1a0000).stroke({ width: 1.2 * s, color: 0xff3300 });
+
+    // ── Vertical tail fin ──────────────────────────────────────────────────
+    g.poly([cx + 76 * s, cy + 6 * s, cx + 76 * s, cy - 22 * s,
+            cx + 68 * s, cy - 22 * s, cx + 65 * s, cy + 3 * s])
+     .fill(0x150000).stroke({ width: 1 * s, color: 0xff3300 });
+
+    // ── Tail rotor hub ─────────────────────────────────────────────────────
+    g.circle(cx + 76 * s, cy - 6 * s, 2.5 * s).fill(0xff4400);
+
+    // ── Tail rotor blades ──────────────────────────────────────────────────
+    for (let ghost = 1; ghost >= 0; ghost--) {
+      const ga = rotA * 1.8 - ghost * 0.3;
+      const alpha = ghost === 0 ? 0.9 : 0.22;
+      const tx = cx + 76 * s, ty = cy - 6 * s;
+      const c = Math.cos(ga), ss = Math.sin(ga);
+      const r = 13 * s;
+      g.moveTo(tx - c * r, ty - ss * r).lineTo(tx + c * r, ty + ss * r)
+       .stroke({ width: 1.6 * s, color: 0xff3300, alpha });
+      g.moveTo(tx - ss * r, ty + c * r).lineTo(tx + ss * r, ty - c * r)
+       .stroke({ width: 1.6 * s, color: 0xff3300, alpha: alpha * 0.7 });
+    }
+
+    // ── Fuselage (depth + main) ────────────────────────────────────────────
+    g.roundRect(cx - 38 * s, cy - 11 * s, 76 * s, 24 * s, 5 * s).fill(0x0a0000);
+    g.roundRect(cx - 38 * s, cy - 12 * s, 76 * s, 24 * s, 5 * s)
+     .fill(0x1a0000).stroke({ width: 1.5 * s, color: 0xff3300 });
+
+    // ── Panel lines ────────────────────────────────────────────────────────
+    g.moveTo(cx + 18 * s, cy - 12 * s).lineTo(cx + 18 * s, cy + 12 * s)
+     .moveTo(cx - 10 * s, cy - 12 * s).lineTo(cx - 10 * s, cy + 12 * s)
+     .stroke({ width: 0.8 * s, color: 0x660000, alpha: 0.6 });
+
+    // ── Cockpit nose (facing left) ─────────────────────────────────────────
+    g.poly([cx - 38 * s, cy - 12 * s, cx - 66 * s, cy + 1 * s, cx - 38 * s, cy + 12 * s])
      .fill(0x100000).stroke({ width: 1.5 * s, color: 0xff3300 });
 
-    // Cockpit nose (facing left)
-    g.poly([cx - 38 * s, cy - 12 * s, cx - 65 * s, cy, cx - 38 * s, cy + 12 * s])
-     .fill(0x0a0000).stroke({ width: 1.5 * s, color: 0xff3300 });
+    // ── Cockpit window (red glow) ──────────────────────────────────────────
+    g.rect(cx - 53 * s, cy - 8 * s, 14 * s, 12 * s).fill({ color: 0xff3300, alpha: 0.9 });
+    g.rect(cx - 53 * s, cy - 8 * s, 16 * s, 14 * s).fill({ color: 0xff2200, alpha: 0.12 });
+    g.rect(cx - 52 * s, cy - 7 * s, 5 * s, 2.5 * s).fill({ color: 0xff8800, alpha: 0.5 });
 
-    // Cockpit window
-    g.rect(cx - 55 * s, cy - 8 * s, 15 * s, 11 * s).fill(0xff3300);
+    // ── Landing skids ──────────────────────────────────────────────────────
+    g.moveTo(cx - 22 * s, cy + 12 * s).lineTo(cx - 24 * s, cy + 25 * s)
+     .moveTo(cx + 12 * s, cy + 12 * s).lineTo(cx + 14 * s, cy + 25 * s)
+     .moveTo(cx - 30 * s, cy + 25 * s).lineTo(cx + 22 * s, cy + 25 * s)
+     .stroke({ width: 1.5 * s, color: 0xff3300 });
 
-    // HP damage tint
+    // ── HP damage tint ─────────────────────────────────────────────────────
     if (e.hp < e.maxHp) {
       const dmg = 1 - e.hp / e.maxHp;
-      g.circle(cx, cy, 18 * s).fill({ color: 0xff4400, alpha: dmg * 0.3 });
+      g.circle(cx, cy, 20 * s).fill({ color: 0xff4400, alpha: dmg * 0.35 });
     }
   }
 

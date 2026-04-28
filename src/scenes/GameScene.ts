@@ -288,9 +288,7 @@ export class GameScene {
       this.fwdMissiles.push(fireFwdMissile(this.heli.x, this.heli.y));
       this.audio.missileLaunch();
     } else if (this.currentLevel === 5) {
-      const m = fireFwdMissile(this.heli.x, this.heli.y);
-      this.cave.fireCaveMissile(m);
-      this.fwdMissiles.push(m);
+      this.fwdMissiles.push(fireFwdMissile(this.heli.x, this.heli.y));
       this.audio.missileLaunch();
     } else {
       this._dropBomb();
@@ -440,8 +438,8 @@ export class GameScene {
         }, 2600);
       },
     );
-    // Update forward missiles in cave (clear rocks)
-    this.fwdMissiles = updateFwdMissiles(this.fwdMissiles, (_m) => false);
+    // Forward missiles destroy rocks, formations, and cave missiles on contact
+    this.fwdMissiles = updateFwdMissiles(this.fwdMissiles, (m) => this.cave.checkObstacleHit(m));
     // Update cave HUD distance via scrollX
     this.hud.setDist(Math.max(0, LEVEL_DIST - Math.floor(this.cave.currentScroll)));
     if (this.cave.currentScroll >= LEVEL_DIST && !this.levelDone) {

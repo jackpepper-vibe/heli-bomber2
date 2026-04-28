@@ -15,6 +15,8 @@ interface Formation {
   wx: number;    // world x (scrolls left)
   ceilPts: number[];
   floorPts: number[];
+  gapTop: number;  // bottom of ceiling formation (top of navigable gap)
+  gapBot: number;  // top of floor formation (bottom of navigable gap)
 }
 
 interface CaveRock {
@@ -76,13 +78,15 @@ export class CaveSystem {
     const { ceil, floor } = caveProfile(wx);
     const mid = (ceil + floor) / 2;
     const gap = 55 + Math.random() * 25;
+    const gapTop = mid - gap / 2;
+    const gapBot = mid + gap / 2;
     const ceilPts: number[] = [];
     const floorPts: number[] = [];
     for (let dx = -30; dx <= 30; dx += 5) {
       ceilPts.push(wx + dx, ceil + (mid - ceil) * (1 - Math.abs(dx) / 30) - gap / 2);
       floorPts.push(wx + dx, floor - (floor - mid) * (1 - Math.abs(dx) / 30) + gap / 2);
     }
-    return { wx, ceilPts, floorPts };
+    return { wx, ceilPts, floorPts, gapTop, gapBot };
   }
 
   private _seedRocks(): void {
@@ -153,6 +157,16 @@ export class CaveSystem {
       }
     }
 
+    // Formation collision — heli must stay within the gap
+    for (const f of this.formations) {
+      if (Math.abs(heliX - f.wx) < 30) {
+        if (heliY - 22 * hs < f.gapTop || heliY + 24 * hs > f.gapBot) {
+          this._triggerCrash(onCrash);
+          return;
+        }
+      }
+    }
+
     // Cave missiles (fly left from right edge)
     if (--this.caveMissileTimer <= 0) {
       this.caveMissileTimer = 90 + Math.floor(Math.random() * 80);
@@ -176,12 +190,28 @@ export class CaveSystem {
     });
   }
 
-  /** Called when player fires in cave — checks if a cave missile is hit */
-  fireCaveMissile(fwd: FwdMissileData): boolean {
+  /** Per-frame hit check: player missile vs cave missiles, rocks, and formations */
+  checkObstacleHit(m: { x: number; y: number }): boolean {
+    // Cave missiles
     for (let i = this.caveMissiles.length - 1; i >= 0; i--) {
-      const m = this.caveMissiles[i];
-      if (dist(fwd.x, fwd.y, m.x, m.y) < 20) {
+      if (dist(m.x, m.y, this.caveMissiles[i].x, this.caveMissiles[i].y) < 20) {
         this.caveMissiles.splice(i, 1);
+        return true;
+      }
+    }
+    // Rocks (stalactites / stalagmites)
+    for (let i = this.rocks.length - 1; i >= 0; i--) {
+      const r = this.rocks[i];
+      if (dist(m.x, m.y, r.wx, r.wy) < r.r + 8) {
+        this.rocks.splice(i, 1);
+        return true;
+      }
+    }
+    // Formations (rock blockades) — hit the solid part outside the gap
+    for (let i = this.formations.length - 1; i >= 0; i--) {
+      const f = this.formations[i];
+      if (Math.abs(m.x - f.wx) < 35 && (m.y < f.gapTop + 6 || m.y > f.gapBot - 6)) {
+        this.formations.splice(i, 1);
         return true;
       }
     }
