@@ -37,15 +37,15 @@ export class InputSystem {
     };
   }
 
-  /** Call once per frame AFTER consuming the fire intent */
+  /** Call immediately after handling the fire intent to clear it */
   consumeFire(): void {
-    this._fireConsumed = this._firePressed;
+    this._firePressed = false;
+    this._fireConsumed = false;
   }
 
-  /** Call at start of each frame to reset single-frame fire flag */
+  /** Call at start of each frame — only resets the consumed guard */
   tick(): void {
     this._fireConsumed = false;
-    this._firePressed = false;
   }
 
   /** Bind touch controls — call once after DOM is ready */
