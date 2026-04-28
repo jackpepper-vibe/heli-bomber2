@@ -32,9 +32,8 @@ interface Smoke {
 }
 
 interface ScorePopup {
-  x: number; y: number;
-  text: string; color: number;
-  alpha: number; vy: number;
+  node: PIXI.Text;
+  vy: number;
 }
 
 // Fire color gradient: 0=white, 0.3=yellow, 0.6=orange, 1=dark red
@@ -124,8 +123,24 @@ export class ParticleSystem {
     }
   }
 
-  addScorePopup(x: number, y: number, text: string, color = COL_GREEN): void {
-    this.popups.push({ x, y, text, color, alpha: 1.0, vy: -1.5 });
+  addScorePopup(x: number, y: number, message: string, color = COL_GREEN): void {
+    const isCombo = message.includes('COMBO') || message.includes('x');
+    const node = new PIXI.Text({
+      text: message,
+      style: {
+        fontFamily: 'Courier New',
+        fontSize: isCombo ? 16 : 13,
+        fontWeight: 'bold',
+        fill: color,
+        stroke: { color: 0x000000, width: 3 },
+      },
+    });
+    node.anchor.set(0.5, 1);
+    node.x = x;
+    node.y = y - 20;
+    node.alpha = 1.0;
+    this.container.addChild(node);
+    this.popups.push({ node, vy: -1.8 });
   }
 
   update(): void {
@@ -156,8 +171,13 @@ export class ParticleSystem {
       return ++sm.life < sm.maxL;
     });
 
-    // Popups
-    this.popups = this.popups.filter(p => { p.y += p.vy; p.alpha -= 0.017; return p.alpha > 0; });
+    // Popups — driven entirely in update(), no separate draw pass needed
+    this.popups = this.popups.filter(p => {
+      p.node.y += p.vy;
+      p.node.alpha -= 0.022;
+      if (p.node.alpha <= 0) { p.node.destroy(); return false; }
+      return true;
+    });
   }
 
   draw(): void {
@@ -235,30 +255,10 @@ export class ParticleSystem {
     }
   }
 
-  drawPopups(): void {
-    for (const p of this.popups) {
-      const fontSize = p.text.includes('COMBO') ? 15 : 12;
-      const text = new PIXI.Text({
-        text: p.text,
-        style: {
-          fontFamily: 'Courier New',
-          fontSize,
-          fontWeight: 'bold',
-          fill: p.color,
-          dropShadow: { color: 0x000000, blur: 4, distance: 1, angle: Math.PI / 4 },
-        },
-      });
-      text.alpha = p.alpha;
-      text.anchor.set(0.5, 0.5);
-      text.x = p.x; text.y = p.y;
-      this.container.addChild(text);
-      setTimeout(() => { if (!text.destroyed) text.destroy(); }, 16);
-    }
-  }
-
   clear(): void {
-    this.sparks = []; this.debrisArr = []; this.explosions = [];
-    this.smokeArr = []; this.popups = [];
+    this.sparks = []; this.debrisArr = []; this.explosions = []; this.smokeArr = [];
+    for (const p of this.popups) p.node.destroy();
+    this.popups = [];
     this.gfx.clear();
   }
 
@@ -276,7 +276,7 @@ export class ParticleSystem {
       ? `COMBO x${mult}${is2x ? ' [2X]' : ''}! +${pts}`
       : is2x ? `[2X] +${pts}` : `+${pts}`;
     const color = mult > 1 ? 0xffff44 : is2x ? 0xffaa00 : COL_LT_GREEN;
-    this.addScorePopup(x, y - 10, label, color);
+    this.addScorePopup(x, y, label, color);
   }
 
   spawnSplash(x: number): void {

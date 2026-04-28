@@ -618,7 +618,7 @@ export class GameScene {
               const pts = base * mult * doub;
               this._addScore(pts);
               const lbl = `${s.def.label}! ${mult > 1 ? `COMBO x${mult}! ` : ''}+${pts}`;
-              this.particles.addScorePopup(bm.x, bm.y - 10, lbl, 0xffff44);
+              this.particles.addScorePopup(bm.x, bm.y, lbl, 0xffff44);
               const pu = maybeSpawnPowerUp(s.x + s.w * 0.5, s.y);
               if (pu) this.powerUps.push(pu);
               this.ships.splice(si, 1);
@@ -626,7 +626,7 @@ export class GameScene {
               this.particles.spawnExplosion(bm.x, bm.y, 1.0);
               const pts = 80 * mult * doub;
               this._addScore(pts);
-              this.particles.addScorePopup(bm.x, bm.y - 10, `+${pts}`, mult > 1 ? 0xffff44 : COL_LT_GREEN);
+              this.particles.addScorePopup(bm.x, bm.y, `+${pts}`, mult > 1 ? 0xffff44 : COL_LT_GREEN);
             }
             this.audio.bombHit();
             this.shakeMag = Math.max(this.shakeMag, 5);
@@ -684,7 +684,7 @@ export class GameScene {
           this._addScore(pts);
           const label = b.type !== 'building' ? `${b.type.toUpperCase()}! +${pts}`
             : mult > 1 ? `RAZED! COMBO x${mult}! +${pts}` : `RAZED! +${pts}`;
-          this.particles.addScorePopup(bm.x, bm.y - 10, label, b.type !== 'building' ? 0xffff44 : 0xff9900);
+          this.particles.addScorePopup(bm.x, bm.y, label, b.type !== 'building' ? 0xffff44 : 0xff9900);
           if (b.type === 'fuel' || b.type === 'radar' || b.type === 'bunker') {
             const pu = maybeSpawnPowerUp(b.x + b.baseW / 2, bm.y);
             if (pu) this.powerUps.push(pu);
@@ -696,7 +696,7 @@ export class GameScene {
           const pts = (b.type === 'bunker' ? 150 : 80) * mult * doub;
           this._addScore(pts);
           this.particles.spawnExplosion(bm.x, bm.y, 1.0);
-          this.particles.addScorePopup(bm.x, bm.y - 10, `+${pts}`, mult > 1 ? 0xffff44 : COL_LT_GREEN);
+          this.particles.addScorePopup(bm.x, bm.y, `+${pts}`, mult > 1 ? 0xffff44 : COL_LT_GREEN);
         }
         this.audio.bombHit();
         this.shakeMag = Math.max(this.shakeMag, 6);
@@ -717,7 +717,7 @@ export class GameScene {
         this.hud.setBombs(this.bombsLeft, this.currentLevel);
       }
       this.audio.powerUp();
-      this.particles.addScorePopup(p.x, p.y - 20, `${p.type} POWER-UP!`, 0xffff44);
+      this.particles.addScorePopup(p.x, p.y, `${p.type} POWER-UP!`, 0xffff44);
     }
     if (this.powers.shield > 0) this.powers.shield--;
     if (this.powers.score2x > 0) this.powers.score2x--;
