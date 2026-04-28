@@ -166,32 +166,114 @@ export class Helicopter {
   }
 
   /** Draw onto an external canvas (used for heli-select preview) */
-  static drawPreview(
-    canvas: HTMLCanvasElement,
-    model: HeliModel,
-  ): void {
+  static drawPreview(canvas: HTMLCanvasElement, model: HeliModel): void {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const CW = canvas.width, CH = canvas.height;
+    ctx.clearRect(0, 0, CW, CH);
+
+    // Scale: target ASSAULT (1.0) at 78% canvas width; cap so GUNSHIP fits
+    const baseS  = (CW * 0.78) / 141;
+    const maxS   = Math.min((CW - 12) / 2 / 76, (CW - 12) / 2 / 65);
+    const s      = Math.min(model.scale * baseS, maxS);
+
+    // Center: shift right slightly to account for nose/tail asymmetry
+    const cx = CW / 2 + 5 * s;
+    const cy = CH * 0.54;
+
+    // ── Tail boom ──────────────────────────────────────────────────────────
+    ctx.fillStyle   = '#001200';
     ctx.strokeStyle = '#00ff41';
-    ctx.fillStyle = '#001a00';
-    // Simplified preview — just fuselage outline
-    const cx = canvas.width / 2, cy = canvas.height / 2;
-    const s = model.scale * 0.7;
+    ctx.lineWidth   = Math.max(1, 1.2 * s);
     ctx.beginPath();
-    ctx.roundRect(cx - 38 * s, cy - 12 * s, 76 * s, 24 * s, 4 * s);
+    ctx.moveTo(cx - 38 * s, cy - 2 * s);
+    ctx.lineTo(cx - 76 * s, cy);
+    ctx.lineTo(cx - 76 * s, cy + 5 * s);
+    ctx.lineTo(cx - 38 * s, cy + 8 * s);
+    ctx.closePath();
     ctx.fill(); ctx.stroke();
+
+    // ── Vertical tail fin ──────────────────────────────────────────────────
+    ctx.beginPath();
+    ctx.moveTo(cx - 76 * s, cy + 5 * s);
+    ctx.lineTo(cx - 76 * s, cy - 14 * s);
+    ctx.lineTo(cx - 70 * s, cy - 14 * s);
+    ctx.lineTo(cx - 67 * s, cy + 3 * s);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    // ── Tail rotor ─────────────────────────────────────────────────────────
+    ctx.lineWidth = Math.max(1, 1.2 * s);
+    ctx.beginPath();
+    ctx.moveTo(cx - 76 * s, cy - 12 * s);
+    ctx.lineTo(cx - 76 * s, cy + 1 * s);
+    ctx.stroke();
+
+    // ── Fuselage (manual round-rect for compat) ────────────────────────────
+    const r  = 4 * s;
+    const fx = cx - 38 * s, fy = cy - 12 * s, fw = 76 * s, fh = 24 * s;
+    ctx.fillStyle   = '#001a00';
+    ctx.strokeStyle = '#00ff41';
+    ctx.lineWidth   = Math.max(1, 1.5 * s);
+    ctx.beginPath();
+    ctx.moveTo(fx + r, fy);
+    ctx.lineTo(fx + fw - r, fy);
+    ctx.arcTo(fx + fw, fy, fx + fw, fy + r, r);
+    ctx.lineTo(fx + fw, fy + fh - r);
+    ctx.arcTo(fx + fw, fy + fh, fx + fw - r, fy + fh, r);
+    ctx.lineTo(fx + r, fy + fh);
+    ctx.arcTo(fx, fy + fh, fx, fy + fh - r, r);
+    ctx.lineTo(fx, fy + r);
+    ctx.arcTo(fx, fy, fx + r, fy, r);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    // ── Cockpit nose ───────────────────────────────────────────────────────
+    ctx.fillStyle = '#001200';
     ctx.beginPath();
     ctx.moveTo(cx + 38 * s, cy - 12 * s);
     ctx.lineTo(cx + 65 * s, cy);
     ctx.lineTo(cx + 38 * s, cy + 12 * s);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    // ── Window ─────────────────────────────────────────────────────────────
     ctx.fillStyle = '#00ff41';
-    ctx.fillRect(cx + 40 * s, cy - 8 * s, 15 * s, 11 * s);
-    // Rotor
-    ctx.moveTo(cx - 58 * s, cy - 22 * s);
-    ctx.lineTo(cx + 58 * s, cy - 22 * s);
-    ctx.lineWidth = 2;
+    ctx.fillRect(cx + 40 * s, cy - 8 * s, 14 * s, 11 * s);
+
+    // ── Rotor mast ─────────────────────────────────────────────────────────
+    ctx.strokeStyle = '#aaffbb';
+    ctx.lineWidth   = Math.max(1, 2 * s);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 12 * s);
+    ctx.lineTo(cx, cy - 22 * s);
+    ctx.stroke();
+
+    // ── Main rotor ─────────────────────────────────────────────────────────
+    ctx.strokeStyle = '#00ff41';
+    ctx.lineWidth   = Math.max(1.5, 2.5 * s);
+    ctx.beginPath();
+    ctx.moveTo(cx - 56 * s, cy - 22 * s);
+    ctx.lineTo(cx + 56 * s, cy - 22 * s);
+    ctx.stroke();
+    // Cross-blade (subtle ghost)
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.moveTo(cx - 40 * s, cy - 22 * s - 15 * s);
+    ctx.lineTo(cx + 40 * s, cy - 22 * s + 15 * s);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // ── Landing skids ──────────────────────────────────────────────────────
+    ctx.lineWidth = Math.max(1, 1.5 * s);
+    ctx.beginPath();
+    ctx.moveTo(cx - 22 * s, cy + 12 * s);
+    ctx.lineTo(cx - 24 * s, cy + 24 * s);
+    ctx.moveTo(cx + 12 * s, cy + 12 * s);
+    ctx.lineTo(cx + 14 * s, cy + 24 * s);
+    ctx.moveTo(cx - 30 * s, cy + 24 * s);
+    ctx.lineTo(cx + 22 * s, cy + 24 * s);
     ctx.stroke();
   }
 }

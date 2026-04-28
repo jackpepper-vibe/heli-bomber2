@@ -33,7 +33,8 @@ interface Smoke {
 
 interface ScorePopup {
   node: PIXI.Text;
-  vy: number;
+  startY: number;
+  frame: number;
 }
 
 // Fire color gradient: 0=white, 0.3=yellow, 0.6=orange, 1=dark red
@@ -137,10 +138,11 @@ export class ParticleSystem {
     });
     node.anchor.set(0.5, 1);
     node.x = x;
-    node.y = y - 20;
+    const startY = (Number.isFinite(y) ? y : 240) - 24;
+    node.y = startY;
     node.alpha = 1.0;
     this.container.addChild(node);
-    this.popups.push({ node, vy: -1.8 });
+    this.popups.push({ node, startY, frame: 0 });
   }
 
   update(): void {
@@ -171,10 +173,11 @@ export class ParticleSystem {
       return ++sm.life < sm.maxL;
     });
 
-    // Popups — driven entirely in update(), no separate draw pass needed
+    // Popups — position computed deterministically from startY so direction is unambiguous
     this.popups = this.popups.filter(p => {
-      p.node.y += p.vy;
-      p.node.alpha -= 0.022;
+      p.frame++;
+      p.node.y = p.startY - p.frame * 2.4;    // always moves UP
+      p.node.alpha = Math.max(0, 1 - p.frame / 52);
       if (p.node.alpha <= 0) { p.node.destroy(); return false; }
       return true;
     });

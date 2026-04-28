@@ -97,7 +97,7 @@ export class MenuScene {
       card.dataset['id'] = String(model.id);
 
       const previewCanvas = document.createElement('canvas');
-      previewCanvas.width = 180; previewCanvas.height = 80;
+      previewCanvas.width = 180; previewCanvas.height = 100;
       Helicopter.drawPreview(previewCanvas, model);
 
       card.innerHTML = `
