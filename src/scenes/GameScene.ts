@@ -4,7 +4,7 @@ import {
   HELI_MODELS, BOMBS_PER_LEVEL, TOTAL_LEVELS,
   COMBO_WINDOW, COL_LT_GREEN,
   LEVEL_DIST, SCROLL_BASE,
-  OBS_W, OBS_GAP, OBS_SPD,
+  OBS_W, OBS_SPD,
 } from '../utils/constants';
 import { decayShake } from '../utils/math';
 import type { AudioSystem } from '../core/AudioSystem';
@@ -38,11 +38,12 @@ import { StormSystem }       from '../systems/StormSystem';
 // ── Obstacle (Level 2) ─────────────────────────────────────────────────────────
 interface ObstacleData {
   x: number;
-  baseGapTop: number; // centre of oscillation
-  gapTop: number;     // current animated position
+  fromTop: boolean;  // which wall the piston extends from
   phase: number;
   phaseSpd: number;
+  midLen: number;    // centre of oscillation (extension at sin=0)
   amplitude: number;
+  len: number;       // current animated extension
 }
 
 export class GameScene {
@@ -347,20 +348,21 @@ export class GameScene {
     }
   }
 
-  // Level 2: Piston barriers — oscillate vertically, requiring timing to pass
+  // Level 2: Piston barriers — single pillar from top or bottom, oscillates in/out
   private _updateObstacles(_spd: number): void {
-    const playH = GROUND_Y - 36;
+    const MID_LEN = 195;
+    const AMP     = 130;
+
     const last = this.obstacles[this.obstacles.length - 1];
-    if (!last || last.x < W - (260 + Math.random() * 80 | 0)) {
-      const baseGapTop = 70 + Math.random() * (playH - OBS_GAP - 70);
-      const amplitude  = 55 + Math.random() * 55;
+    if (!last || last.x < W - (240 + Math.random() * 100 | 0)) {
       this.obstacles.push({
-        x: W + OBS_W,
-        baseGapTop,
-        gapTop: baseGapTop,
+        x:        W + OBS_W,
+        fromTop:  Math.random() < 0.5,
         phase:    Math.random() * Math.PI * 2,
-        phaseSpd: 0.028 + Math.random() * 0.022,
-        amplitude,
+        phaseSpd: 0.025 + Math.random() * 0.020,
+        midLen:   MID_LEN,
+        amplitude: AMP,
+        len:      MID_LEN,
       });
     }
 
@@ -368,16 +370,16 @@ export class GameScene {
     this.obstacles = this.obstacles.filter(ob => {
       ob.x    -= OBS_SPD;
       ob.phase += ob.phaseSpd;
-      ob.gapTop = Math.max(36, Math.min(
-        ob.baseGapTop + Math.sin(ob.phase) * ob.amplitude,
-        playH - OBS_GAP,
+      ob.len = Math.max(50, Math.min(
+        ob.midLen + Math.sin(ob.phase) * ob.amplitude,
+        GROUND_Y - 36 - 100,
       ));
 
-      const gapBot = ob.gapTop + OBS_GAP;
       const hx1 = this.heli.x - 38 * hm, hx2 = this.heli.x + 32 * hm;
       const hy1 = this.heli.y - 22 * hm, hy2 = this.heli.y + 24 * hm;
       const overlapX = hx2 > ob.x && hx1 < ob.x + OBS_W;
-      if (overlapX && (hy1 < ob.gapTop || hy2 > gapBot)) {
+      const hit = overlapX && (ob.fromTop ? hy1 < ob.len : hy2 > GROUND_Y - ob.len);
+      if (hit) {
         this.particles.spawnSparks(this.heli.x, this.heli.y);
         this._addScore(-200);
         this.audio.heliHit();
@@ -826,55 +828,42 @@ export class GameScene {
     const g = this.buildingRenderer.container.children[0] as PIXI.Graphics;
 
     for (const ob of this.obstacles) {
-      const gapBot = ob.gapTop + OBS_GAP;
-      const cx     = ob.x + OBS_W / 2;
+      const { fromTop, len, x } = ob;
+      const cx   = x + OBS_W / 2;
+      const y0   = fromTop ? 0 : GROUND_Y - len;
+      const y1   = fromTop ? len : GROUND_Y;
+      const tipY = fromTop ? len : GROUND_Y - len;
 
-      // ── Danger glow ahead of each pillar ─────────────────────────────────
-      g.rect(ob.x - 32, 0, 32, ob.gapTop).fill({ color: 0xff2200, alpha: 0.12 });
-      g.rect(ob.x - 32, gapBot, 32, GROUND_Y - gapBot).fill({ color: 0xff2200, alpha: 0.12 });
+      // Danger glow ahead of pillar
+      g.rect(x - 36, y0, 36, y1 - y0).fill({ color: 0xff2200, alpha: 0.13 });
 
-      // ── Ceiling pillar body ───────────────────────────────────────────────
-      g.rect(ob.x, 0, OBS_W, ob.gapTop).fill(0x1a0000).stroke({ width: 2, color: 0xff4400 });
+      // Main pillar body
+      g.rect(x, y0, OBS_W, y1 - y0).fill(0x1a0000).stroke({ width: 2, color: 0xff4400 });
 
-      // Diagonal hazard stripes on ceiling pillar
-      for (let sy = 0; sy < ob.gapTop; sy += 14) {
-        const y0 = sy, y1 = Math.min(sy + 10, ob.gapTop);
-        g.rect(ob.x + 2, y0, OBS_W - 4, y1 - y0).fill({ color: 0xff3300, alpha: 0.18 });
+      // Hazard stripes
+      for (let sy = y0; sy < y1; sy += 16) {
+        g.rect(x + 2, sy, OBS_W - 4, Math.min(10, y1 - sy))
+         .fill({ color: 0xff3300, alpha: 0.20 });
       }
 
-      // Piston head (ceiling — bottom face)
-      const phH = 8;
-      g.rect(ob.x - 3, ob.gapTop - phH, OBS_W + 6, phH)
-       .fill(0x2a0000).stroke({ width: 1.5, color: 0xff6600 });
-      // Piston rod tip accent
-      g.moveTo(cx - 5, ob.gapTop).lineTo(cx + 5, ob.gapTop)
-       .stroke({ width: 3, color: 0xff8800 });
+      // Wall flange (thick anchor at the origin edge)
+      const flangeY = fromTop ? 0 : GROUND_Y - 12;
+      g.rect(x - 4, flangeY, OBS_W + 8, 12).fill(0x2a0000).stroke({ width: 1.5, color: 0xff6600 });
 
-      // ── Floor pillar body ─────────────────────────────────────────────────
-      g.rect(ob.x, gapBot, OBS_W, GROUND_Y - gapBot).fill(0x1a0000).stroke({ width: 2, color: 0xff4400 });
+      // Piston head at the tip
+      const headY = fromTop ? tipY - 10 : tipY;
+      g.rect(x - 4, headY, OBS_W + 8, 10).fill(0x2a0000).stroke({ width: 2, color: 0xff6600 });
+      g.moveTo(cx - 7, tipY).lineTo(cx + 7, tipY).stroke({ width: 3, color: 0xff9900 });
 
-      for (let sy = gapBot; sy < GROUND_Y; sy += 14) {
-        const y0 = sy, y1 = Math.min(sy + 10, GROUND_Y);
-        g.rect(ob.x + 2, y0, OBS_W - 4, y1 - y0).fill({ color: 0xff3300, alpha: 0.18 });
-      }
-
-      // Piston head (floor — top face)
-      g.rect(ob.x - 3, gapBot, OBS_W + 6, phH)
-       .fill(0x2a0000).stroke({ width: 1.5, color: 0xff6600 });
-      g.moveTo(cx - 5, gapBot).lineTo(cx + 5, gapBot)
-       .stroke({ width: 3, color: 0xff8800 });
-
-      // ── Motion arrows — show direction the pistons are travelling ─────────
-      const vel = Math.cos(ob.phase) * ob.amplitude * ob.phaseSpd; // positive = moving down
-      const arrowAlpha = Math.min(1, Math.abs(vel) / 2.5) * 0.85;
-      if (arrowAlpha > 0.05) {
-        const arrowY = ob.gapTop + OBS_GAP / 2;
-        const dir    = vel > 0 ? 1 : -1;
-        // two chevrons pointing in direction of motion
+      // Motion chevrons just past the tip showing direction of travel
+      const tipVel = Math.cos(ob.phase) * ob.amplitude * ob.phaseSpd * (fromTop ? 1 : -1);
+      const arrowAlpha = Math.min(1, Math.abs(tipVel) / 2) * 0.9;
+      if (arrowAlpha > 0.08) {
+        const dir = tipVel > 0 ? 1 : -1;
         for (let ai = 0; ai < 2; ai++) {
-          const ay = arrowY + dir * ai * 10;
+          const ay = tipY + dir * (10 + ai * 11);
           g.moveTo(cx - 6, ay - dir * 5).lineTo(cx, ay).lineTo(cx + 6, ay - dir * 5)
-           .stroke({ width: 2, color: 0xff6600, alpha: arrowAlpha * (1 - ai * 0.4) });
+           .stroke({ width: 2, color: 0xff7700, alpha: arrowAlpha * (1 - ai * 0.4) });
         }
       }
     }
