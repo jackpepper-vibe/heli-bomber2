@@ -9,21 +9,126 @@
 
     body {
       background: #000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
+      width: 100vw;
+      height: 100dvh;
+      height: 100vh; /* fallback */
       overflow: hidden;
       font-family: 'Courier New', monospace;
       color: #00ff41;
+      position: relative;
     }
 
     #game-container {
-      position: relative;
+      position: absolute;
+      top: 50%;
+      left: 50%;
       width: 920px;
       height: 520px;
-      flex-shrink: 0;
+      transform-origin: center center;
+      transform: translate(-50%, -50%);
     }
+
+    /* ── Rotate-to-landscape prompt ───────────────────────────── */
+    #rotate-prompt {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #000;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      font-family: 'Courier New', monospace;
+    }
+
+    #rotate-prompt .rp-icon {
+      font-size: 64px;
+      animation: spin90 1.6s ease-in-out infinite alternate;
+      display: inline-block;
+      color: #00ff41;
+      text-shadow: 0 0 24px rgba(0,255,65,0.6);
+    }
+
+    @keyframes spin90 {
+      0%   { transform: rotate(0deg);   }
+      100% { transform: rotate(90deg);  }
+    }
+
+    #rotate-prompt .rp-title {
+      font-size: 22px;
+      font-weight: bold;
+      color: #00ff41;
+      letter-spacing: 0.2em;
+      text-shadow: 0 0 20px rgba(0,255,65,0.5);
+    }
+
+    #rotate-prompt .rp-sub {
+      font-size: 12px;
+      color: #007a20;
+      letter-spacing: 0.15em;
+    }
+
+    /* ── Mobile touch controls ────────────────────────────────── */
+    #touch-controls {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 15;
+      display: none;
+    }
+
+    .dp-btn {
+      position: absolute;
+      pointer-events: all;
+      width: 60px;
+      height: 60px;
+      background: rgba(0,255,65,0.07);
+      border: 1px solid rgba(0,255,65,0.22);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(0,255,65,0.45);
+      font-size: 22px;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.08s;
+    }
+
+    .dp-btn:active { background: rgba(0,255,65,0.20); border-color: rgba(0,255,65,0.5); }
+
+    #dp-up    { bottom: 124px; left:  68px; }
+    #dp-down  { bottom:  58px; left:  68px; }
+    #dp-left  { bottom:  91px; left:   4px; }
+    #dp-right { bottom:  91px; left: 132px; }
+
+    #fire-btn {
+      position: absolute;
+      pointer-events: all;
+      bottom: 54px;
+      right: 18px;
+      width: 92px;
+      height: 92px;
+      background: rgba(0,255,65,0.08);
+      border: 2px solid rgba(0,255,65,0.30);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(0,255,65,0.5);
+      font-size: 13px;
+      letter-spacing: 0.05em;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.08s;
+    }
+
+    #fire-btn:active { background: rgba(255,100,0,0.25); border-color: rgba(255,100,0,0.6); color: #ff8800; }
 
     #game-canvas {
       display: block;
@@ -305,6 +410,13 @@
   </style>
 </head>
 <body>
+  <!-- Rotate-to-landscape prompt (fixed fullscreen overlay) -->
+  <div id="rotate-prompt">
+    <div class="rp-icon">📱</div>
+    <div class="rp-title">ROTATE DEVICE</div>
+    <div class="rp-sub">HELI-BOMBER REQUIRES LANDSCAPE MODE</div>
+  </div>
+
   <div id="game-container">
     <canvas id="game-canvas"></canvas>
 
@@ -343,6 +455,15 @@
       <button id="launch-btn" class="btn">COMMENCE STRIKE</button>
     </div>
 
+    <!-- Touch controls (mobile d-pad + fire) -->
+    <div id="touch-controls">
+      <button class="dp-btn" id="dp-up">▲</button>
+      <button class="dp-btn" id="dp-down">▼</button>
+      <button class="dp-btn" id="dp-left">◀</button>
+      <button class="dp-btn" id="dp-right">▶</button>
+      <button id="fire-btn">FIRE</button>
+    </div>
+
     <!-- CRT scanline / vignette overlay -->
     <div id="screen-fx"></div>
 
@@ -357,5 +478,50 @@
   </div>
 
   <script type="module" src="/src/main.ts"></script>
+
+  <script>
+    (function () {
+      const GAME_W = 920, GAME_H = 520;
+      const container   = document.getElementById('game-container');
+      const rotatePrompt = document.getElementById('rotate-prompt');
+      const touchControls = document.getElementById('touch-controls');
+
+      function isPortrait() {
+        // Use innerWidth/Height — works in all mobile browsers
+        return window.innerHeight > window.innerWidth;
+      }
+
+      function isTouchDevice() {
+        return navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+      }
+
+      function resize() {
+        const portrait = isPortrait();
+
+        // Show rotate prompt on portrait touch devices; hide otherwise
+        if (isTouchDevice() && portrait) {
+          rotatePrompt.style.display = 'flex';
+          return; // don't scale while portrait
+        }
+        rotatePrompt.style.display = 'none';
+
+        // Show touch controls only on touch devices in landscape
+        if (isTouchDevice()) {
+          touchControls.style.display = 'block';
+        }
+
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const scale = Math.min(vw / GAME_W, vh / GAME_H);
+
+        container.style.transform =
+          'translate(-50%, -50%) scale(' + scale + ')';
+      }
+
+      window.addEventListener('resize',            resize, { passive: true });
+      window.addEventListener('orientationchange', resize, { passive: true });
+      resize();
+    })();
+  </script>
 </body>
 </html>
