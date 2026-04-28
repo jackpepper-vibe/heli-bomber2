@@ -1,5 +1,7 @@
 {
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/", "destination": "/heli-bomber.html" }
+    { "source": "/", "destination": "/game.html" }
   ]
 }
