@@ -36,7 +36,14 @@ import { CaveSystem }        from '../systems/CaveSystem';
 import { StormSystem }       from '../systems/StormSystem';
 
 // ── Obstacle (Level 2) ─────────────────────────────────────────────────────────
-interface ObstacleData { x: number; gapTop: number; }
+interface ObstacleData {
+  x: number;
+  baseGapTop: number; // centre of oscillation
+  gapTop: number;     // current animated position
+  phase: number;
+  phaseSpd: number;
+  amplitude: number;
+}
 
 export class GameScene {
   readonly container: PIXI.Container;
@@ -340,18 +347,32 @@ export class GameScene {
     }
   }
 
-  // Level 2: Barriers
+  // Level 2: Piston barriers — oscillate vertically, requiring timing to pass
   private _updateObstacles(_spd: number): void {
     const playH = GROUND_Y - 36;
     const last = this.obstacles[this.obstacles.length - 1];
-    if (!last || last.x < W - (280 + Math.random() * 100 | 0)) {
-      const gapTop = 36 + Math.random() * (playH - OBS_GAP);
-      this.obstacles.push({ x: W + OBS_W, gapTop });
+    if (!last || last.x < W - (260 + Math.random() * 80 | 0)) {
+      const baseGapTop = 70 + Math.random() * (playH - OBS_GAP - 70);
+      const amplitude  = 55 + Math.random() * 55;
+      this.obstacles.push({
+        x: W + OBS_W,
+        baseGapTop,
+        gapTop: baseGapTop,
+        phase:    Math.random() * Math.PI * 2,
+        phaseSpd: 0.028 + Math.random() * 0.022,
+        amplitude,
+      });
     }
 
     const hm = this.heli.model.hitMult;
     this.obstacles = this.obstacles.filter(ob => {
-      ob.x -= OBS_SPD;
+      ob.x    -= OBS_SPD;
+      ob.phase += ob.phaseSpd;
+      ob.gapTop = Math.max(36, Math.min(
+        ob.baseGapTop + Math.sin(ob.phase) * ob.amplitude,
+        playH - OBS_GAP,
+      ));
+
       const gapBot = ob.gapTop + OBS_GAP;
       const hx1 = this.heli.x - 38 * hm, hx2 = this.heli.x + 32 * hm;
       const hy1 = this.heli.y - 22 * hm, hy2 = this.heli.y + 24 * hm;
@@ -802,19 +823,60 @@ export class GameScene {
 
   private _drawObstacles(): void {
     if (this.currentLevel !== 2 || this.obstacles.length === 0) return;
-    // Use particles gfx as a spare graphics context isn't ideal;
-    // we use the heli gfx (it's cleared every frame) or a dedicated one
-    // For simplicity, draw obstacles into the background gfx reuse
-    // (They're drawn into buildingRenderer container via its gfx, which is cleared)
     const g = this.buildingRenderer.container.children[0] as PIXI.Graphics;
+
     for (const ob of this.obstacles) {
       const gapBot = ob.gapTop + OBS_GAP;
-      // Warning glow
-      g.rect(ob.x - 28, 0, 28, ob.gapTop).fill({ color: 0xff4400, alpha: 0.18 });
-      g.rect(ob.x - 28, gapBot, 28, GROUND_Y - gapBot).fill({ color: 0xff4400, alpha: 0.18 });
-      // Barrier fill
+      const cx     = ob.x + OBS_W / 2;
+
+      // ── Danger glow ahead of each pillar ─────────────────────────────────
+      g.rect(ob.x - 32, 0, 32, ob.gapTop).fill({ color: 0xff2200, alpha: 0.12 });
+      g.rect(ob.x - 32, gapBot, 32, GROUND_Y - gapBot).fill({ color: 0xff2200, alpha: 0.12 });
+
+      // ── Ceiling pillar body ───────────────────────────────────────────────
       g.rect(ob.x, 0, OBS_W, ob.gapTop).fill(0x1a0000).stroke({ width: 2, color: 0xff4400 });
+
+      // Diagonal hazard stripes on ceiling pillar
+      for (let sy = 0; sy < ob.gapTop; sy += 14) {
+        const y0 = sy, y1 = Math.min(sy + 10, ob.gapTop);
+        g.rect(ob.x + 2, y0, OBS_W - 4, y1 - y0).fill({ color: 0xff3300, alpha: 0.18 });
+      }
+
+      // Piston head (ceiling — bottom face)
+      const phH = 8;
+      g.rect(ob.x - 3, ob.gapTop - phH, OBS_W + 6, phH)
+       .fill(0x2a0000).stroke({ width: 1.5, color: 0xff6600 });
+      // Piston rod tip accent
+      g.moveTo(cx - 5, ob.gapTop).lineTo(cx + 5, ob.gapTop)
+       .stroke({ width: 3, color: 0xff8800 });
+
+      // ── Floor pillar body ─────────────────────────────────────────────────
       g.rect(ob.x, gapBot, OBS_W, GROUND_Y - gapBot).fill(0x1a0000).stroke({ width: 2, color: 0xff4400 });
+
+      for (let sy = gapBot; sy < GROUND_Y; sy += 14) {
+        const y0 = sy, y1 = Math.min(sy + 10, GROUND_Y);
+        g.rect(ob.x + 2, y0, OBS_W - 4, y1 - y0).fill({ color: 0xff3300, alpha: 0.18 });
+      }
+
+      // Piston head (floor — top face)
+      g.rect(ob.x - 3, gapBot, OBS_W + 6, phH)
+       .fill(0x2a0000).stroke({ width: 1.5, color: 0xff6600 });
+      g.moveTo(cx - 5, gapBot).lineTo(cx + 5, gapBot)
+       .stroke({ width: 3, color: 0xff8800 });
+
+      // ── Motion arrows — show direction the pistons are travelling ─────────
+      const vel = Math.cos(ob.phase) * ob.amplitude * ob.phaseSpd; // positive = moving down
+      const arrowAlpha = Math.min(1, Math.abs(vel) / 2.5) * 0.85;
+      if (arrowAlpha > 0.05) {
+        const arrowY = ob.gapTop + OBS_GAP / 2;
+        const dir    = vel > 0 ? 1 : -1;
+        // two chevrons pointing in direction of motion
+        for (let ai = 0; ai < 2; ai++) {
+          const ay = arrowY + dir * ai * 10;
+          g.moveTo(cx - 6, ay - dir * 5).lineTo(cx, ay).lineTo(cx + 6, ay - dir * 5)
+           .stroke({ width: 2, color: 0xff6600, alpha: arrowAlpha * (1 - ai * 0.4) });
+        }
+      }
     }
   }
 
