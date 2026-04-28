@@ -6,6 +6,7 @@ interface Spark {
   x: number; y: number;
   vx: number; vy: number;
   life: number; maxL: number;
+  color: number;
 }
 
 interface Debris {
@@ -23,20 +24,45 @@ interface Explosion {
   size: number;
 }
 
+interface Smoke {
+  x: number; y: number;
+  r: number;
+  vx: number; vy: number;
+  life: number; maxL: number;
+}
+
 interface ScorePopup {
   x: number; y: number;
   text: string; color: number;
   alpha: number; vy: number;
 }
 
+// Fire color gradient: 0=white, 0.3=yellow, 0.6=orange, 1=dark red
+function fireColor(t: number): number {
+  if (t < 0.25) {
+    const f = t / 0.25;
+    const r = 255, g = Math.round(255 - f * 55), b = Math.round(255 - f * 230);
+    return (r << 16) | (g << 8) | b;
+  }
+  if (t < 0.55) {
+    const f = (t - 0.25) / 0.3;
+    const r = 255, g = Math.round(200 - f * 120), b = 0;
+    return (r << 16) | (g << 8) | b;
+  }
+  const f = Math.min(1, (t - 0.55) / 0.45);
+  const r = Math.round(255 - f * 120), g = Math.round(80 - f * 80), b = 0;
+  return (r << 16) | (g << 8) | b;
+}
+
 export class ParticleSystem {
   readonly container: PIXI.Container;
   private readonly gfx: PIXI.Graphics;
 
-  private sparks: Spark[] = [];
-  private debrisArr: Debris[] = [];
-  private explosions: Explosion[] = [];
-  private popups: ScorePopup[] = [];
+  private sparks:      Spark[]      = [];
+  private debrisArr:   Debris[]     = [];
+  private explosions:  Explosion[]  = [];
+  private smokeArr:    Smoke[]      = [];
+  private popups:      ScorePopup[] = [];
 
   constructor() {
     this.container = new PIXI.Container();
@@ -44,32 +70,54 @@ export class ParticleSystem {
     this.container.addChild(this.gfx);
   }
 
-  spawnSparks(x: number, y: number, count = 24): void {
+  spawnSparks(x: number, y: number, count = 24, warm = false): void {
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2;
-      const s = 2 + Math.random() * 5.5;
-      this.sparks.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 24, maxL: 24 });
+      const s = 2 + Math.random() * 6;
+      const color = warm
+        ? [0xffdd00, 0xff8800, 0xff4400][Math.floor(Math.random() * 3)]
+        : COL_GREEN;
+      this.sparks.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 1.5,
+        life: 22 + Math.random() * 14 | 0, maxL: 36, color });
     }
   }
 
   spawnExplosion(x: number, y: number, size = 1): void {
-    this.explosions.push({ x, y, frame: 0, maxFrame: 28, size });
-    this.spawnSparks(x, y);
-    if (size > 1.0) this.spawnSparks(x, y);
-    const nDebris = Math.round(3 + size * 4);
+    this.explosions.push({ x, y, frame: 0, maxFrame: 32, size });
+
+    // Fire sparks (warm)
+    this.spawnSparks(x, y, Math.round(18 + size * 16), true);
+    if (size > 1.2) this.spawnSparks(x, y, 20, true);
+
+    // Smoke puffs
+    const nSmoke = Math.round(3 + size * 5);
+    for (let i = 0; i < nSmoke; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 0.6 + Math.random() * 1.4 * size;
+      this.smokeArr.push({
+        x: x + randRange(-8, 8), y: y + randRange(-4, 4),
+        r: 5 + Math.random() * 10 * size,
+        vx: Math.cos(a) * s * 0.4, vy: Math.sin(a) * s - 1.8,
+        life: 0, maxL: 40 + Math.random() * 30 | 0,
+      });
+    }
+
+    // Debris — mix of green (structural) and fire-hot
+    const nDebris = Math.round(4 + size * 5);
     for (let i = 0; i < nDebris; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const spd   = 2 + Math.random() * 5 * size;
-      const r = Math.random();
-      const color = r > 0.4 ? COL_GREEN : r > 0.5 ? COL_LT_GREEN : 0x004010;
+      const spd   = 2.5 + Math.random() * 6 * size;
+      const hot = Math.random() > 0.45;
+      const color = hot
+        ? [0xff8800, 0xffcc00, 0xff4400][Math.floor(Math.random() * 3)]
+        : [COL_GREEN, COL_LT_GREEN, 0x004010][Math.floor(Math.random() * 3)];
       this.debrisArr.push({
         x, y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd - 2,
+        vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd - 2.5,
         w: 4 + Math.random() * 10 * size | 0,
         h: 3 + Math.random() * 7  * size | 0,
         angle: Math.random() * Math.PI * 2,
-        avel: (Math.random() - 0.5) * 0.2,
+        avel: (Math.random() - 0.5) * 0.25,
         alpha: 1,
         color,
       });
@@ -77,40 +125,60 @@ export class ParticleSystem {
   }
 
   addScorePopup(x: number, y: number, text: string, color = COL_GREEN): void {
-    this.popups.push({ x, y, text, color, alpha: 1.0, vy: -1.4 });
+    this.popups.push({ x, y, text, color, alpha: 1.0, vy: -1.5 });
   }
 
   update(): void {
     // Sparks
     this.sparks = this.sparks.filter(s => {
-      s.x += s.vx; s.y += s.vy; s.vy += 0.18;
+      s.x += s.vx; s.y += s.vy; s.vy += 0.22; s.vx *= 0.97;
       return --s.life > 0;
     });
 
     // Debris
     this.debrisArr = this.debrisArr.filter(d => {
-      d.x += d.vx; d.y += d.vy; d.vy += 0.28;
+      d.x += d.vx; d.y += d.vy; d.vy += 0.30;
       d.angle += d.avel; d.vx *= 0.97;
-      if (d.y > GROUND_Y) { d.y = GROUND_Y; d.vy *= -0.25; d.vx *= 0.7; }
-      d.alpha -= 0.022;
+      if (d.y > GROUND_Y) { d.y = GROUND_Y; d.vy *= -0.22; d.vx *= 0.65; }
+      d.alpha -= 0.020;
       return d.alpha > 0;
     });
 
     // Explosions
     this.explosions = this.explosions.filter(e => ++e.frame < e.maxFrame);
 
+    // Smoke — rises and expands
+    this.smokeArr = this.smokeArr.filter(sm => {
+      sm.x += sm.vx; sm.y += sm.vy;
+      sm.vy *= 0.96;       // decelerate upward
+      sm.r  += 0.35;       // expand
+      sm.vx *= 0.99;
+      return ++sm.life < sm.maxL;
+    });
+
     // Popups
-    this.popups = this.popups.filter(p => { p.y += p.vy; p.alpha -= 0.018; return p.alpha > 0; });
+    this.popups = this.popups.filter(p => { p.y += p.vy; p.alpha -= 0.017; return p.alpha > 0; });
   }
 
   draw(): void {
     const g = this.gfx;
     g.clear();
 
-    // Sparks
+    // Smoke (behind everything)
+    for (const sm of this.smokeArr) {
+      const t = sm.life / sm.maxL;
+      const alpha = (t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85) * 0.18;
+      g.circle(sm.x, sm.y, sm.r).fill({ color: 0x1a2200, alpha });
+    }
+
+    // Sparks with trailing line
     for (const s of this.sparks) {
       const a = s.life / s.maxL;
-      g.moveTo(s.x, s.y).lineTo(s.x + s.vx * 3, s.y + s.vy * 3).stroke({ width: 1.5, color: COL_GREEN, alpha: a });
+      const trailLen = 4;
+      g.moveTo(s.x, s.y)
+       .lineTo(s.x - s.vx * trailLen, s.y - s.vy * trailLen)
+       .stroke({ width: 1.5, color: s.color, alpha: a * 0.9 });
+      g.circle(s.x, s.y, 1).fill({ color: s.color, alpha: a });
     }
 
     // Debris
@@ -119,74 +187,89 @@ export class ParticleSystem {
       g.context.transform(
         Math.cos(d.angle), Math.sin(d.angle),
         -Math.sin(d.angle), Math.cos(d.angle),
-        d.x, d.y
+        d.x, d.y,
       );
       g.rect(-d.w / 2, -d.h / 2, d.w, d.h).fill({ color: d.color, alpha: d.alpha });
       g.context.restore();
     }
 
-    // Explosions (drawn last so they appear on top)
+    // Explosions — layered fire rings
     for (const e of this.explosions) {
-      const t = e.frame / e.maxFrame;
-      const s = e.size;
-      const coreR = Math.max(0.1, 22 * s * (1 - t));
-      const ringR = Math.max(0.1, 50 * s * t);
+      const t  = e.frame / e.maxFrame;
+      const s  = e.size;
 
-      // Core glow (approximated with two concentric fills)
-      g.circle(e.x, e.y, coreR).fill({ color: 0xaaffcc, alpha: (1 - t) * 0.9 });
-      g.circle(e.x, e.y, coreR * 0.5).fill({ color: 0xffffff, alpha: (1 - t) * 0.8 });
+      // Shockwave
+      const shockR = Math.max(0.1, 70 * s * t);
+      g.circle(e.x, e.y, shockR)
+       .stroke({ width: Math.max(0.5, 3 - t * 3), color: 0xff6600, alpha: Math.max(0, (1 - t) * 0.4) });
 
-      // Expanding ring
-      g.circle(e.x, e.y, ringR).stroke({ width: 2.5, color: COL_GREEN, alpha: (1 - t) * 0.55 });
-      if (t > 0.15) {
-        const ring2R = Math.max(0.1, 35 * s * (t - 0.15));
-        g.circle(e.x, e.y, ring2R).stroke({ width: 1.5, color: COL_GREEN, alpha: (1 - t) * 0.3 });
+      // Outer fire ring
+      if (t > 0.05) {
+        const ring1R = Math.max(0.1, 52 * s * (t - 0.05));
+        g.circle(e.x, e.y, ring1R)
+         .stroke({ width: 2.5, color: fireColor(t * 0.9), alpha: (1 - t) * 0.45 });
+      }
+      if (t > 0.12) {
+        const ring2R = Math.max(0.1, 36 * s * (t - 0.12));
+        g.circle(e.x, e.y, ring2R)
+         .stroke({ width: 1.8, color: fireColor(t), alpha: (1 - t) * 0.3 });
+      }
+
+      // Hot core (white-yellow-orange)
+      const coreR  = Math.max(0.1, 28 * s * (1 - t));
+      const coreC  = fireColor(t * 0.5);
+      g.circle(e.x, e.y, coreR).fill({ color: coreC, alpha: (1 - t) * 0.85 });
+
+      // White hot center
+      if (t < 0.35) {
+        const whiteR = Math.max(0.1, 14 * s * (1 - t / 0.35));
+        g.circle(e.x, e.y, whiteR).fill({ color: 0xffffff, alpha: (1 - t / 0.35) * 0.85 });
+      }
+
+      // Ground flash (flat ellipse) for big explosions
+      if (s > 1.0 && t < 0.3) {
+        const fw = 40 * s * (1 - t / 0.3);
+        const fh = 8 * s * (1 - t / 0.3);
+        g.ellipse(e.x, GROUND_Y, fw, fh).fill({ color: 0xff8800, alpha: (1 - t / 0.3) * 0.3 });
       }
     }
   }
 
   drawPopups(): void {
-    // Popups rendered via DOM-like approach would need a PIXI.Text —
-    // we use a separate Text pool instead, managed here.
-    // For performance, these are small so draw them in the same gfx.
     for (const p of this.popups) {
+      const fontSize = p.text.includes('COMBO') ? 15 : 12;
       const text = new PIXI.Text({
         text: p.text,
         style: {
           fontFamily: 'Courier New',
-          fontSize: p.text.includes('COMBO') ? 14 : 11,
+          fontSize,
           fontWeight: 'bold',
           fill: p.color,
+          dropShadow: { color: 0x000000, blur: 4, distance: 1, angle: Math.PI / 4 },
         },
       });
       text.alpha = p.alpha;
       text.anchor.set(0.5, 0.5);
-      text.x = p.x;
-      text.y = p.y;
+      text.x = p.x; text.y = p.y;
       this.container.addChild(text);
-      // Remove immediately — we re-add each frame (simple, acceptable for small counts)
-      setTimeout(() => text.destroy(), 16);
+      setTimeout(() => { if (!text.destroyed) text.destroy(); }, 16);
     }
   }
 
   clear(): void {
-    this.sparks = [];
-    this.debrisArr = [];
-    this.explosions = [];
-    this.popups = [];
+    this.sparks = []; this.debrisArr = []; this.explosions = [];
+    this.smokeArr = []; this.popups = [];
     this.gfx.clear();
   }
 
   get hasExplosions(): boolean { return this.explosions.length > 0; }
 
-  /** Shake magnitude trigger — returns max blast radius for camera shake */
   getMaxExplosionSize(): number {
     let max = 0;
     for (const e of this.explosions) if (e.size > max) max = e.size;
     return max;
   }
 
-  // Expose for combo popup drawing from GameScene
   spawnComboPopup(x: number, y: number, count: number, pts: number, is2x: boolean): void {
     const mult = count <= 1 ? 1 : count <= 3 ? 2 : count <= 6 ? 3 : 4;
     const label = mult > 1
@@ -196,15 +279,12 @@ export class ParticleSystem {
     this.addScorePopup(x, y - 10, label, color);
   }
 
-  // Water splash particles (Level 9)
   spawnSplash(x: number): void {
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 8; i++) {
       this.sparks.push({
-        x: x + randRange(-5, 5),
-        y: GROUND_Y - 2,
-        vx: randRange(-1.5, 1.5),
-        vy: randRange(-3.5, -1.5),
-        life: 18, maxL: 18,
+        x: x + randRange(-6, 6), y: GROUND_Y - 2,
+        vx: randRange(-2, 2), vy: randRange(-4, -1.5),
+        life: 20, maxL: 20, color: 0x5bb8e8,
       });
     }
   }

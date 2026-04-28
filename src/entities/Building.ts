@@ -169,7 +169,7 @@ export class BuildingRenderer {
 
       if (r.h > 14) {
         g.moveTo(r.x + 1, r.y + r.h * 0.45).lineTo(r.x + r.w - 1, r.y + r.h * 0.45)
-         .stroke({ width: 0.5, color: 0x003a10 });
+         .stroke({ width: 0.5, color: 0x003a10, alpha: 0.6 });
       }
 
       const wW = 5, wH = Math.min(6, r.h - 5);
@@ -180,10 +180,16 @@ export class BuildingRenderer {
           const wx = r.x + 3 + (lay.wins.length === 1 ? (span - wW) / 2 : j * gap);
           const wy = r.y + (r.h - wH) / 2;
           if (lit) {
-            const flicker = Math.sin(now * 0.003 + b.x * 0.1 + j * 1.7) > 0.92;
-            g.rect(wx, wy, wW, wH).fill(flicker ? COL_LT_GREEN : COL_GREEN);
+            const flicker = Math.sin(now * 0.003 + b.x * 0.1 + j * 1.7) > 0.94;
+            const wColor = flicker ? 0xcc6600 : 0xffcc44;
+            const wAlpha = flicker ? 0.5 : 0.85 + 0.1 * Math.sin(now * 0.002 + b.x + j);
+            // Window glow
+            g.rect(wx - 1, wy - 1, wW + 2, wH + 2).fill({ color: 0xffaa00, alpha: wAlpha * 0.15 });
+            g.rect(wx, wy, wW, wH).fill({ color: wColor, alpha: wAlpha });
+            // Window reflection
+            g.rect(wx + 1, wy + 1, 1.5, wH * 0.4).fill({ color: 0xfff0c0, alpha: 0.5 });
           } else {
-            g.rect(wx, wy, wW, wH).fill(0x001800);
+            g.rect(wx, wy, wW, wH).fill(0x001200);
           }
         });
       }
@@ -215,11 +221,18 @@ export class BuildingRenderer {
     }
 
     if (b.hasNeon) {
-      const nw = Math.min(b.baseW - 4, 24);
+      const nw = Math.min(b.baseW - 4, 28);
       const nx = b.x + (b.baseW - nw) / 2;
-      const ny = GROUND_Y - 10;
-      const na = 0.5 + 0.3 * Math.sin(Date.now() * 0.004 + b.x);
-      g.rect(nx, ny, nw, 7).stroke({ width: 2, color: COL_GREEN, alpha: na });
+      const ny = GROUND_Y - 12;
+      const pulse = Math.sin(Date.now() * 0.004 + b.x);
+      const na = 0.55 + 0.35 * pulse;
+      // Neon glow layers
+      g.rect(nx - 2, ny - 2, nw + 4, 11).fill({ color: COL_GREEN, alpha: na * 0.08 });
+      g.rect(nx,     ny,     nw,     7 ).fill({ color: COL_GREEN, alpha: na * 0.12 });
+      g.rect(nx,     ny,     nw,     7 ).stroke({ width: 2, color: COL_GREEN, alpha: na });
+      // Inner bright line
+      g.moveTo(nx + 3, ny + 3).lineTo(nx + nw - 3, ny + 3)
+       .stroke({ width: 1, color: 0xaaffc0, alpha: na * 0.65 });
     }
 
     if (b.damaged && rects.length > 0) {
