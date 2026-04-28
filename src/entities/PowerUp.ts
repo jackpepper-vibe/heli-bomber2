@@ -18,16 +18,18 @@ export interface ActivePowers {
 export function maybeSpawnPowerUp(x: number, y: number): PowerUpData | null {
   if (Math.random() > POWER_SPAWN_CHANCE) return null;
   const type = POWER_TYPES[Math.floor(Math.random() * POWER_TYPES.length)];
-  return { x, y, type, vy: -2.5, phase: Math.random() * Math.PI * 2 };
+  return { x, y, type, vy: -4.5, phase: Math.random() * Math.PI * 2 };
 }
 
 export function updatePowerUps(pus: PowerUpData[], spd: number): PowerUpData[] {
   return pus.filter(p => {
     p.x -= spd * 0.5;
     p.y += p.vy;
-    p.vy = Math.min(p.vy + 0.12, 2.0);
+    // Decelerate upward rise to a stop — no downward gravity so items float and wait
+    if (p.vy < 0) p.vy = Math.min(0, p.vy + 0.09);
+    if (p.y < 44) p.y = 44; // clamp to top of playfield
     p.phase += 0.04;
-    return p.x > -30 && p.y < 520;
+    return p.x > -30; // only removed when scrolled off the left edge
   });
 }
 
