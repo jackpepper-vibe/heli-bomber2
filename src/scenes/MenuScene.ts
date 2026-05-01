@@ -46,6 +46,8 @@ export class MenuScene {
     this.splashEl.style.display   = 'none';
     this.heliSelEl.style.display  = 'flex';
     this.gameoverEl.style.display = 'none';
+    const pilotEl = document.getElementById('hs-pilot-name');
+    if (pilotEl) pilotEl.textContent = this.playerName;
   }
 
   showGameOver(score: number, playerName: string): void {
@@ -100,11 +102,19 @@ export class MenuScene {
       previewCanvas.width = 180; previewCanvas.height = 100;
       Helicopter.drawPreview(previewCanvas, model);
 
+      const speedPct  = model.speedMult >= 1.2 ? 100 : model.speedMult >= 1.0 ? 66 : 33;
+      const armourPct = model.hitMult   >= 1.3 ? 100 : model.hitMult   >= 1.0 ? 66 : 33;
       card.innerHTML = `
         <div class="heli-card-name">${model.name}</div>
-        <div class="heli-card-stat">SPEED: ${model.speedMult >= 1.2 ? '★★★' : model.speedMult >= 1.0 ? '★★☆' : '★☆☆'}</div>
-        <div class="heli-card-stat">ARMOUR: ${model.hitMult >= 1.3 ? '★★★' : model.hitMult >= 1.0 ? '★★☆' : '★☆☆'}</div>
-        <div class="heli-card-stat">${model.desc}</div>
+        <div class="stat-row">
+          <span class="stat-label">SPEED</span>
+          <div class="stat-track"><div class="stat-fill" style="width:${speedPct}%"></div></div>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">ARMOUR</span>
+          <div class="stat-track"><div class="stat-fill" style="width:${armourPct}%"></div></div>
+        </div>
+        <div class="heli-card-desc">${model.desc}</div>
       `;
       card.prepend(previewCanvas);
 

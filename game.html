@@ -391,44 +391,158 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #000;
+      background: linear-gradient(
+        to bottom,
+        #0e2040 0%,
+        #1a3e6e 13%,
+        #2e72a8 28%,
+        #58a0cc 46%,
+        #96c8e0 64%,
+        #d4e8c8 79%,
+        #e8d898 90%,
+        #d8c070 100%
+      );
       z-index: 30;
     }
 
     #heli-select.visible { display: flex; }
 
-    .hs-title {
-      font-size: 13px;
-      letter-spacing: 0.3em;
-      color: #00aa28;
-      margin-bottom: 24px;
+    .hs-header {
+      text-align: center;
+      margin-bottom: 22px;
+    }
+
+    .hs-main-title {
+      font-size: 30px;
+      font-weight: bold;
+      color: #fff8e0;
+      text-shadow: 0 0 28px rgba(255,196,48,0.55), 0 0 70px rgba(255,140,0,0.25), 0 2px 0 rgba(0,0,0,0.40);
+      letter-spacing: 0.10em;
+      margin-bottom: 4px;
+    }
+
+    .hs-subtitle {
+      font-size: 11px;
+      color: rgba(200,230,255,0.65);
+      letter-spacing: 0.35em;
+      margin-bottom: 8px;
+    }
+
+    .hs-pilot-pill {
+      display: inline-block;
+      font-size: 10px;
+      color: rgba(255,210,120,0.75);
+      letter-spacing: 0.20em;
+      background: rgba(14,32,64,0.50);
+      border: 1px solid rgba(255,196,60,0.28);
+      border-radius: 20px;
+      padding: 3px 14px;
     }
 
     .heli-cards {
       display: flex;
-      gap: 24px;
-      margin-bottom: 28px;
+      gap: 20px;
+      margin-bottom: 24px;
     }
 
     .heli-card {
-      width: 218px;
-      border: 1px solid #003a10;
-      padding: 14px;
+      width: 210px;
+      background: rgba(8,18,38,0.62);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,196,60,0.22);
+      border-top-color: rgba(255,220,100,0.32);
+      border-radius: 8px;
+      padding: 16px 14px 14px;
       cursor: pointer;
-      background: #000;
-      transition: border-color 0.15s, box-shadow 0.15s;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
       text-align: center;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
     }
 
-    .heli-card:hover, .heli-card.selected {
-      border-color: #00ff41;
-      box-shadow: 0 0 18px rgba(0,255,65,0.3);
+    .heli-card:hover {
+      background: rgba(14,32,64,0.78);
+      border-color: rgba(255,196,60,0.52);
+      box-shadow: 0 4px 18px rgba(0,0,0,0.40), 0 0 20px rgba(255,196,60,0.14);
     }
 
-    .heli-card canvas { display: block; margin: 0 auto 10px; max-width: 100%; }
+    .heli-card.selected {
+      background: rgba(14,32,64,0.85);
+      border-color: rgba(255,196,60,0.85);
+      border-top-color: rgba(255,228,120,0.95);
+      box-shadow: 0 4px 22px rgba(0,0,0,0.45), 0 0 30px rgba(255,196,60,0.28), inset 0 0 18px rgba(255,196,60,0.05);
+    }
 
-    .heli-card-name { font-size: 13px; color: #00ff41; margin-bottom: 4px; letter-spacing: 0.1em; }
-    .heli-card-stat { font-size: 11px; color: #007a20; margin-bottom: 2px; }
+    .heli-card canvas {
+      display: block;
+      margin: 0 auto 12px;
+      max-width: 100%;
+      border-radius: 4px;
+      background: rgba(4,10,22,0.75);
+      border: 1px solid rgba(255,196,60,0.10);
+    }
+
+    .heli-card-name {
+      font-size: 13px;
+      font-weight: bold;
+      color: #fff8e0;
+      letter-spacing: 0.18em;
+      margin-bottom: 10px;
+    }
+
+    .stat-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .stat-label {
+      font-size: 9px;
+      color: rgba(200,220,255,0.55);
+      letter-spacing: 0.12em;
+      width: 44px;
+      text-align: left;
+      flex-shrink: 0;
+    }
+
+    .stat-track {
+      flex: 1;
+      height: 5px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid rgba(255,196,60,0.12);
+    }
+
+    .stat-fill {
+      height: 100%;
+      background: linear-gradient(to right, rgba(200,160,40,0.85), rgba(255,210,60,0.95));
+      border-radius: 3px;
+      box-shadow: 0 0 6px rgba(255,196,60,0.40);
+    }
+
+    .heli-card-desc {
+      font-size: 10px;
+      color: rgba(200,220,255,0.42);
+      letter-spacing: 0.10em;
+      margin-top: 8px;
+      border-top: 1px solid rgba(255,196,60,0.10);
+      padding-top: 7px;
+    }
+
+    /* Heli select button (day palette) */
+    #heli-select .btn {
+      background: rgba(14,32,64,0.55);
+      border: 1px solid rgba(255,196,60,0.55);
+      color: #fff8e0;
+    }
+
+    #heli-select .btn:hover {
+      background: rgba(255,196,60,0.85);
+      color: #0e2040;
+      box-shadow: 0 0 24px rgba(255,196,60,0.65);
+    }
 
     /* ── Game over ────────────────────────────────────────────── */
     #gameover {
@@ -511,7 +625,11 @@
 
     <!-- Heli select -->
     <div id="heli-select">
-      <div class="hs-title">SELECT YOUR AIRCRAFT</div>
+      <div class="hs-header">
+        <div class="hs-main-title">HELI BOMBER <span class="title-num">2</span></div>
+        <div class="hs-subtitle">SELECT YOUR AIRCRAFT</div>
+        <div class="hs-pilot-pill">PILOT: <span id="hs-pilot-name">ACE</span></div>
+      </div>
       <div class="heli-cards" id="heli-cards"></div>
       <button id="launch-btn" class="btn">COMMENCE STRIKE</button>
     </div>
