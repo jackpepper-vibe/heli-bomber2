@@ -11,6 +11,7 @@ interface Star   { x: number; y: number; r: number; phase: number; layer: number
 interface Cloud  { x: number; y: number; w: number; h: number; alpha: number; speed: number; }
 interface BgBuilding { x: number; w: number; h: number; wins: Array<{ rx: number; ry: number; lit: boolean }>; }
 interface GroundDetail { x: number; type: 'tree' | 'lamp' | 'antenna'; h: number; }
+interface DayBird { x: number; y: number; phase: number; speed: number; }
 
 // Star colours: mostly white/silver, rare warm yellow
 const STAR_COLORS = [0xffffff, 0xffffff, 0xe8eeff, 0xfff8e0, 0xddeeff];
@@ -29,6 +30,7 @@ export class BackgroundSystem {
   private clouds:        Cloud[]        = [];
   private bgCity:        BgBuilding[]   = [];
   private groundDetails: GroundDetail[] = [];
+  private dayBirds:      DayBird[]      = [];
   private bgScrollX = 0;
 
   constructor() {
@@ -52,8 +54,21 @@ export class BackgroundSystem {
     this._initClouds();
     this._initBgCity();
     this._seedGroundDetails();
+    this._initDayBirds();
     this._drawStaticSky();
     this._drawMoon();
+  }
+
+  private _initDayBirds(): void {
+    this.dayBirds = [];
+    for (let i = 0; i < 7; i++) {
+      this.dayBirds.push({
+        x: Math.random() * W,
+        y: 55 + Math.random() * 160,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.25 + Math.random() * 0.35,
+      });
+    }
   }
 
   // ── Static layers ─────────────────────────────────────────────────────────────
@@ -118,12 +133,22 @@ export class BackgroundSystem {
 
   private _initClouds(): void {
     this.clouds = [];
+    // Night clouds — subtle
     for (let i = 0; i < 8; i++) {
       this.clouds.push({
         x: Math.random() * W, y: 20 + Math.random() * 120,
         w: 90 + Math.random() * 160, h: 22 + Math.random() * 35,
         alpha: 0.022 + Math.random() * 0.035,
         speed: 0.18 + Math.random() * 0.15,
+      });
+    }
+    // Extra daytime-only clouds (bigger, more varied heights)
+    for (let i = 0; i < 10; i++) {
+      this.clouds.push({
+        x: -200 + Math.random() * (W + 400), y: 18 + Math.random() * 180,
+        w: 140 + Math.random() * 280, h: 44 + Math.random() * 80,
+        alpha: 0.85 + Math.random() * 0.12,
+        speed: 0.10 + Math.random() * 0.22,
       });
     }
   }
@@ -169,8 +194,16 @@ export class BackgroundSystem {
       cl.x -= spd * cl.speed;
       if (cl.x + cl.w / 2 < -10) {
         cl.x   = W + cl.w / 2;
-        cl.y   = 20 + Math.random() * 120;
+        cl.y   = 18 + Math.random() * 180;
         cl.alpha = 0.022 + Math.random() * 0.035;
+      }
+    }
+    for (const b of this.dayBirds) {
+      b.x -= b.speed + spd * 0.06;
+      b.phase += 0.04;
+      if (b.x < -30) {
+        b.x = W + 20 + Math.random() * 80;
+        b.y = 55 + Math.random() * 160;
       }
     }
     for (const d of this.groundDetails) d.x -= spd;
@@ -188,8 +221,9 @@ export class BackgroundSystem {
     if (daytime) {
       this._drawDaySky();
       this._drawSun();
-      this._drawDayClouds();
       this._drawDayMountains();
+      this._drawDayClouds();
+      this._drawDayBirds();
       if (showGround) { this._drawDayGround(); this._drawGroundDetails(true); }
     } else {
       this._drawStars();
@@ -204,64 +238,125 @@ export class BackgroundSystem {
   private _drawDaySky(): void {
     const g = this.skyGfx;
     g.clear();
+    // Warm golden-afternoon gradient — deep prussian blue to amber horizon
     const bands = [
-      { y: 0,           h: 80,             color: 0x1a72b8 },
-      { y: 80,          h: 80,             color: 0x2e90d0 },
-      { y: 160,         h: 80,             color: 0x4aaee0 },
-      { y: 240,         h: 80,             color: 0x6ac4ec },
-      { y: 320,         h: 80,             color: 0x8cd4f2 },
-      { y: 400,         h: GROUND_Y - 400, color: 0xaaddf6 },
+      { y: 0,           h: 65,             color: 0x0e2040 },
+      { y: 65,          h: 70,             color: 0x1a3e6e },
+      { y: 135,         h: 75,             color: 0x2e72a8 },
+      { y: 210,         h: 80,             color: 0x58a0cc },
+      { y: 290,         h: 80,             color: 0x96c8e0 },
+      { y: 370,         h: 60,             color: 0xd4e8c8 },
+      { y: 430,         h: GROUND_Y - 430, color: 0xe8d898 },
     ];
     for (const b of bands) g.rect(0, b.y, W, b.h).fill(b.color);
-    g.rect(0, GROUND_Y - 50, W, 50).fill({ color: 0xc8eaf8, alpha: 0.35 });
+    // Warm atmospheric glow at horizon
+    g.rect(0, GROUND_Y - 60, W, 60).fill({ color: 0xf0c860, alpha: 0.22 });
+    g.rect(0, GROUND_Y - 28, W, 28).fill({ color: 0xe8a840, alpha: 0.18 });
   }
 
   private _drawSun(): void {
     const g = this.starGfx;
     g.clear();
     const now = Date.now();
-    const sx = 700, sy = 72;
-    g.circle(sx, sy, 88).fill({ color: 0xfffbcc, alpha: 0.07 });
-    g.circle(sx, sy, 66).fill({ color: 0xfff5aa, alpha: 0.12 });
-    g.circle(sx, sy, 48).fill({ color: 0xffee66, alpha: 0.20 });
-    g.circle(sx, sy, 34).fill({ color: 0xfffacc, alpha: 0.90 });
-    g.circle(sx, sy, 26).fill({ color: 0xffffff, alpha: 0.80 });
-    for (let i = 0; i < 8; i++) {
-      const a  = (i / 8) * Math.PI * 2 + now * 0.00008;
-      const r1 = 38, r2 = 58 + 5 * Math.sin(now * 0.0018 + i);
-      g.moveTo(sx + Math.cos(a) * r1, sy + Math.sin(a) * r1)
-       .lineTo(sx + Math.cos(a) * r2, sy + Math.sin(a) * r2)
-       .stroke({ width: 2.5, color: 0xffee44, alpha: 0.28 });
-    }
-  }
+    const sx = 660, sy = 118; // lower — afternoon sun position
 
-  private _drawDayClouds(): void {
-    const g = this.cloudGfx;
-    g.clear();
-    for (const cl of this.clouds) {
-      g.ellipse(cl.x,                cl.y,                cl.w * 0.5,  cl.h * 0.50).fill({ color: 0xf6f8ff, alpha: 0.88 });
-      g.ellipse(cl.x + cl.w * 0.22, cl.y - cl.h * 0.22, cl.w * 0.40, cl.h * 0.48).fill({ color: 0xffffff, alpha: 0.92 });
-      g.ellipse(cl.x - cl.w * 0.20, cl.y - cl.h * 0.16, cl.w * 0.36, cl.h * 0.44).fill({ color: 0xeef4ff, alpha: 0.80 });
-      g.ellipse(cl.x,                cl.y + cl.h * 0.20, cl.w * 0.44, cl.h * 0.22).fill({ color: 0xc8d8e8, alpha: 0.18 });
+    // Volumetric god rays (drawn behind disc)
+    for (let i = 0; i < 12; i++) {
+      const a    = (i / 12) * Math.PI * 2 + now * 0.000035;
+      const rayL = 170 + 60 * Math.sin(now * 0.0009 + i * 0.88);
+      const hw   = 0.032;
+      const x1 = sx + Math.cos(a - hw) * 42, y1 = sy + Math.sin(a - hw) * 42;
+      const x2 = sx + Math.cos(a + hw) * 42, y2 = sy + Math.sin(a + hw) * 42;
+      const x3 = sx + Math.cos(a + hw) * rayL, y3 = sy + Math.sin(a + hw) * rayL;
+      const x4 = sx + Math.cos(a - hw) * rayL, y4 = sy + Math.sin(a - hw) * rayL;
+      const alpha = (0.032 + 0.018 * Math.sin(now * 0.0013 + i * 1.3))
+                  * (0.55 + 0.45 * Math.sin(a + now * 0.00006));
+      g.poly([x1, y1, x2, y2, x3, y3, x4, y4]).fill({ color: 0xfff0a0, alpha });
     }
+
+    // Atmospheric aureole
+    g.circle(sx, sy, 140).fill({ color: 0xfff8e0, alpha: 0.028 });
+    g.circle(sx, sy, 108).fill({ color: 0xffef98, alpha: 0.055 });
+    g.circle(sx, sy,  80).fill({ color: 0xffe860, alpha: 0.095 });
+    g.circle(sx, sy,  58).fill({ color: 0xfff0a0, alpha: 0.18  });
+    g.circle(sx, sy,  42).fill({ color: 0xfffacc, alpha: 0.45  });
+    // Disc
+    g.circle(sx, sy, 30).fill({ color: 0xfffde8, alpha: 0.92 });
+    g.circle(sx, sy, 22).fill({ color: 0xffffff, alpha: 0.88 });
+    // Lens flare streak (horizontal)
+    g.rect(sx - 160, sy - 1.5, 320, 3).fill({ color: 0xfff4aa, alpha: 0.06 });
+    g.rect(sx - 90,  sy - 0.8, 180, 1.6).fill({ color: 0xffffff, alpha: 0.05 });
   }
 
   private _drawDayMountains(): void {
     const g = this.mountainGfx;
     g.clear();
-    this._drawMountainRange(g, 0.06, GROUND_Y - 20, 95, 0.0028, 1.42, 0x1a4e10, 0.92);
-    this._drawMountainRange(g, 0.06, GROUND_Y - 20, 95, 0.0028, 1.42, 0x2e7020, 0.32);
-    this._drawMountainRange(g, 0.14, GROUND_Y - 10, 68, 0.0048, 2.88, 0x225c16, 0.94);
-    this._drawMountainRange(g, 0.14, GROUND_Y - 10, 68, 0.0048, 2.88, 0x42882c, 0.22);
+    // 4 ranges — full atmospheric perspective (far = hazy lavender, near = rich green)
+    // Farthest: pale lavender-blue haze
+    this._drawMountainRange(g, 0.03, GROUND_Y - 18, 118, 0.0022, 1.18, 0x9098c0, 0.50);
+    this._drawMountainRange(g, 0.03, GROUND_Y - 18, 118, 0.0022, 1.18, 0xb8c0d8, 0.18);
+    // Far-mid: muted slate-teal
+    this._drawMountainRange(g, 0.07, GROUND_Y - 14, 92,  0.0034, 1.88, 0x4a7068, 0.72);
+    this._drawMountainRange(g, 0.07, GROUND_Y - 14, 92,  0.0034, 1.88, 0x70a888, 0.20);
+    // Near-mid: forest green
+    this._drawMountainRange(g, 0.12, GROUND_Y - 10, 74,  0.0048, 2.60, 0x2a6420, 0.88);
+    this._drawMountainRange(g, 0.12, GROUND_Y - 10, 74,  0.0048, 2.60, 0x4a9038, 0.22);
+    // Nearest foreground ridge: dark rich green
+    this._drawMountainRange(g, 0.20, GROUND_Y - 6,  52,  0.0068, 3.40, 0x184010, 0.96);
+    this._drawMountainRange(g, 0.20, GROUND_Y - 6,  52,  0.0068, 3.40, 0x2e6824, 0.28);
+  }
+
+  private _drawDayClouds(): void {
+    const g = this.cloudGfx;
+    g.clear();
+    // Only render the last 10 entries (daytime clouds), skip the first 8 night ones
+    const dayClouds = this.clouds.slice(8);
+    for (const cl of dayClouds) {
+      // Soft underside shadow
+      g.ellipse(cl.x,              cl.y + cl.h * 0.38, cl.w * 0.44, cl.h * 0.20)
+       .fill({ color: 0xa8b8c8, alpha: 0.20 });
+      // Main cloud body — multiple overlapping lobes for volume
+      g.ellipse(cl.x,              cl.y,               cl.w * 0.50, cl.h * 0.52).fill({ color: 0xf4f6ff, alpha: 0.80 });
+      g.ellipse(cl.x + cl.w * 0.26, cl.y - cl.h * 0.24, cl.w * 0.42, cl.h * 0.50).fill({ color: 0xffffff, alpha: 0.86 });
+      g.ellipse(cl.x - cl.w * 0.24, cl.y - cl.h * 0.18, cl.w * 0.38, cl.h * 0.46).fill({ color: 0xf8faff, alpha: 0.76 });
+      g.ellipse(cl.x + cl.w * 0.06, cl.y - cl.h * 0.38, cl.w * 0.30, cl.h * 0.40).fill({ color: 0xffffff, alpha: 0.68 });
+      g.ellipse(cl.x - cl.w * 0.10, cl.y - cl.h * 0.32, cl.w * 0.26, cl.h * 0.36).fill({ color: 0xfff8f2, alpha: 0.62 });
+      // Warm afternoon highlight on crown
+      g.ellipse(cl.x + cl.w * 0.08, cl.y - cl.h * 0.44, cl.w * 0.18, cl.h * 0.24)
+       .fill({ color: 0xfff4cc, alpha: 0.28 });
+    }
+  }
+
+  private _drawDayBirds(): void {
+    const g = this.bgCityGfx; // reuse bgCity layer (cleared in _drawBgCity; cleared here for daytime)
+    g.clear();
+    const now = Date.now();
+    for (const b of this.dayBirds) {
+      const wing = Math.sin(b.phase) * 4; // wing flap offset
+      const bx = b.x, by = b.y;
+      const scale = 0.7 + b.speed * 0.8; // far birds smaller
+      // V-shape silhouette
+      g.moveTo(bx,            by)
+       .lineTo(bx - 8 * scale, by + wing)
+       .moveTo(bx,            by)
+       .lineTo(bx + 8 * scale, by + wing)
+       .stroke({ width: 1.2, color: 0x1a2a40, alpha: 0.55 + 0.1 * Math.sin(now * 0.002 + b.phase) });
+    }
   }
 
   private _drawDayGround(): void {
     const g = this.groundGfx;
     g.clear();
-    g.rect(0, GROUND_Y,     W, H - GROUND_Y).fill(0x3e8420);
-    g.rect(0, GROUND_Y,     W, 8           ).fill(0x52a030);
-    g.moveTo(0, GROUND_Y).lineTo(W, GROUND_Y).stroke({ width: 2.0, color: 0x5ab832, alpha: 0.9 });
-    g.moveTo(0, GROUND_Y - 1).lineTo(W, GROUND_Y - 1).stroke({ width: 4, color: 0x80d840, alpha: 0.14 });
+    // Rich golden-green meadow
+    g.rect(0, GROUND_Y,     W, H - GROUND_Y).fill(0x3c8018);
+    // Bright top strip lit by afternoon sun
+    g.rect(0, GROUND_Y,     W, 10).fill(0x56a828);
+    // Subtle darker mid-ground band for depth
+    g.rect(0, GROUND_Y + 10, W, H - GROUND_Y - 10).fill({ color: 0x2a6010, alpha: 0.35 });
+    // Edge horizon glow from warm sun
+    g.moveTo(0, GROUND_Y).lineTo(W, GROUND_Y)
+     .stroke({ width: 2.5, color: 0x78cc38, alpha: 0.85 });
+    g.rect(0, GROUND_Y - 8, W, 8).fill({ color: 0xd0c060, alpha: 0.08 });
   }
 
   private _drawStars(): void {

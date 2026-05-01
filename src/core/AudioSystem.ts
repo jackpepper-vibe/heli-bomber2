@@ -208,7 +208,7 @@ export class AudioSystem {
     const now = ac.currentTime;
     const master = ac.createGain();
     master.gain.setValueAtTime(0, now);
-    master.gain.linearRampToValueAtTime(1.0, now + 1.8);
+    master.gain.linearRampToValueAtTime(0.38, now + 2.2);
     master.connect(ac.destination);
     this.engineGain = master;
 
@@ -225,13 +225,13 @@ export class AudioSystem {
     lpf.frequency.value = 280;
     lpf.Q.value = 0.7;
     const noiseGain = ac.createGain();
-    noiseGain.gain.value = 0.18;
+    noiseGain.gain.value = 0.22;
     // LFO for blade-chop modulation (~12 Hz)
     const lfo = ac.createOscillator();
     lfo.type = 'sine';
     lfo.frequency.value = 12;
     const lfoDepth = ac.createGain();
-    lfoDepth.gain.value = 0.10;
+    lfoDepth.gain.value = 0.07;
     lfo.connect(lfoDepth);
     lfoDepth.connect(noiseGain.gain);
     noise.connect(lpf);
@@ -243,7 +243,7 @@ export class AudioSystem {
     turbine.type = 'sawtooth';
     turbine.frequency.value = 48;
     const turbGain = ac.createGain();
-    turbGain.gain.value = 0.055;
+    turbGain.gain.value = 0.038;
     turbine.connect(turbGain);
     turbGain.connect(master);
 
@@ -252,7 +252,7 @@ export class AudioSystem {
     harm.type = 'triangle';
     harm.frequency.value = 96;
     const harmGain = ac.createGain();
-    harmGain.gain.value = 0.028;
+    harmGain.gain.value = 0.018;
     harm.connect(harmGain);
     harmGain.connect(master);
 
