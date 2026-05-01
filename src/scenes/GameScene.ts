@@ -815,10 +815,10 @@ export class GameScene {
     // Background
     const isDaytime = lv === 1;
     if (isSeaLevel) {
-      this.bg.draw(false, true, false);
+      this.bg.draw(false, true, false, this.heli.x, this.heli.y);
       this.bg.drawSea(this.waterPhase);
     } else {
-      this.bg.draw(isCityLevel, false, isDaytime);
+      this.bg.draw(isCityLevel, false, isDaytime, this.heli.x, this.heli.y);
     }
 
     // Finish line (not on level 1 countdown or cave or sea)

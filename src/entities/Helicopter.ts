@@ -63,10 +63,13 @@ export class Helicopter {
     g.ellipse(cx, cy + 28 * S, 42 * S, 14 * S).fill({ color: 0x2255aa, alpha: 0.05 + 0.02 * beat });
     g.ellipse(cx, cy + 20 * S, 28 * S, 9  * S).fill({ color: 0x4488cc, alpha: 0.07 });
 
-    // ── Rotor disc glow ────────────────────────────────────────────────────────
-    g.circle(cx, cy - 22 * S, 72 * S).fill({ color: COL_HELI_TRIM, alpha: 0.03 });
-    g.circle(cx, cy - 22 * S, 60 * S).fill({ color: COL_HELI_TRIM, alpha: 0.055 });
-    g.circle(cx, cy - 22 * S, 48 * S).fill({ color: COL_HELI_GLOW, alpha: 0.045 });
+    // ── Rotor disc — motion blur disc fill + outer glow ───────────────────────
+    // Outer soft halo
+    g.circle(cx, cy - 22 * S, 75 * S).fill({ color: COL_HELI_TRIM, alpha: 0.022 });
+    g.circle(cx, cy - 22 * S, 66 * S).fill({ color: COL_HELI_TRIM, alpha: 0.042 });
+    // Semi-transparent blur disc — makes blades look like a spinning plane of motion
+    g.circle(cx, cy - 22 * S, 63 * S).fill({ color: 0x8ab8d8, alpha: 0.10 });
+    g.circle(cx, cy - 22 * S, 63 * S).stroke({ width: 1.2 * S, color: 0xaad4f0, alpha: 0.18 });
 
     // ── Rotor mast + swashplate detail ─────────────────────────────────────────
     g.moveTo(cx, cy - 12 * S).lineTo(cx, cy - 22 * S)
@@ -85,19 +88,26 @@ export class Helicopter {
     g.circle(cx, cy - 22 * S, 5 * S).fill(0xd0e8ff);
     g.circle(cx, cy - 22 * S, 3 * S).fill(COL_HELI_GLOW);
 
-    // ── Main rotor blades (4 ghost layers for motion blur) ─────────────────────
-    const rotorPulse = 0.7 + 0.25 * Math.sin(rotA * 8);
-    for (let ghost = 3; ghost >= 0; ghost--) {
-      const alpha  = ghost === 0 ? rotorPulse : 0.12 * (4 - ghost);
-      const width  = ghost === 0 ? 3.5 * S : 2 * S;
-      const offset = Math.PI * 0.10 * ghost;
-      const bx1 = Math.cos(offset) * 62 * S, by1 = Math.sin(offset) * 62 * S;
-      const bx2 = Math.cos(offset + Math.PI * 0.5) * 62 * S, by2 = Math.sin(offset + Math.PI * 0.5) * 62 * S;
+    // ── Main rotor blades — 8-layer motion blur for realistic spinning disc ───
+    const rotorPulse = 0.72 + 0.22 * Math.sin(rotA * 8);
+    // Ghost trails spread evenly behind the current blade angle
+    for (let ghost = 7; ghost >= 1; ghost--) {
+      const a   = rotA - ghost * (Math.PI / 7);
+      const alp = (0.055 - ghost * 0.006) * rotorPulse;
+      const bx1 = Math.cos(a) * 62 * S, by1 = Math.sin(a) * 62 * S;
+      const bx2 = Math.cos(a + Math.PI * 0.5) * 62 * S, by2 = Math.sin(a + Math.PI * 0.5) * 62 * S;
       g.moveTo(cx - bx1, cy - 22 * S - by1).lineTo(cx + bx1, cy - 22 * S + by1)
-       .stroke({ width, color: ghost === 0 ? COL_HELI_GLOW : COL_HELI_TRIM, alpha });
+       .stroke({ width: 1.8 * S, color: COL_HELI_TRIM, alpha: alp });
       g.moveTo(cx - bx2, cy - 22 * S - by2).lineTo(cx + bx2, cy - 22 * S + by2)
-       .stroke({ width: width * 0.8, color: COL_HELI_TRIM, alpha: alpha * 0.7 });
+       .stroke({ width: 1.4 * S, color: COL_HELI_TRIM, alpha: alp * 0.7 });
     }
+    // Current blade position — brightest / sharpest
+    const bx1 = Math.cos(rotA) * 62 * S, by1 = Math.sin(rotA) * 62 * S;
+    const bx2 = Math.cos(rotA + Math.PI * 0.5) * 62 * S, by2 = Math.sin(rotA + Math.PI * 0.5) * 62 * S;
+    g.moveTo(cx - bx1, cy - 22 * S - by1).lineTo(cx + bx1, cy - 22 * S + by1)
+     .stroke({ width: 3.5 * S, color: COL_HELI_GLOW, alpha: rotorPulse });
+    g.moveTo(cx - bx2, cy - 22 * S - by2).lineTo(cx + bx2, cy - 22 * S + by2)
+     .stroke({ width: 2.8 * S, color: COL_HELI_TRIM, alpha: rotorPulse * 0.72 });
 
     // ── Horizontal stabiliser ──────────────────────────────────────────────────
     g.poly([cx - 58 * S, cy - 4 * S, cx - 72 * S, cy - 14 * S,
