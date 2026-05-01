@@ -72,12 +72,12 @@ export class BackgroundSystem {
 
   private _initDayBirds(): void {
     this.dayBirds = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 24; i++) {
       this.dayBirds.push({
         x: Math.random() * W,
-        y: 55 + Math.random() * 160,
+        y: 35 + Math.random() * 210,
         phase: Math.random() * Math.PI * 2,
-        speed: 0.25 + Math.random() * 0.35,
+        speed: 0.15 + Math.random() * 0.50,
       });
     }
   }
@@ -160,13 +160,13 @@ export class BackgroundSystem {
         speed: 0.18 + Math.random() * 0.15,
       });
     }
-    // Extra daytime-only clouds (bigger, more varied heights)
-    for (let i = 0; i < 10; i++) {
+    // Daytime clouds — fewer but massive, volumetric cumulus
+    for (let i = 0; i < 6; i++) {
       this.clouds.push({
-        x: -200 + Math.random() * (W + 400), y: 18 + Math.random() * 180,
-        w: 140 + Math.random() * 280, h: 44 + Math.random() * 80,
-        alpha: 0.85 + Math.random() * 0.12,
-        speed: 0.10 + Math.random() * 0.22,
+        x: -200 + Math.random() * (W + 600), y: 28 + Math.random() * 110,
+        w: 320 + Math.random() * 300, h: 120 + Math.random() * 130,
+        alpha: 0.92,
+        speed: 0.07 + Math.random() * 0.12,
       });
     }
   }
@@ -199,8 +199,8 @@ export class BackgroundSystem {
 
   private _mkDetail(x: number): GroundDetail {
     const r = Math.random();
-    if (r < 0.38) return { x, type: 'tree',    h: 18 + Math.random() * 18 | 0 };
-    if (r < 0.68) return { x, type: 'lamp',    h: 26 + Math.random() * 8  | 0 };
+    if (r < 0.58) return { x, type: 'tree',    h: 48 + Math.random() * 40 | 0 };
+    if (r < 0.78) return { x, type: 'lamp',    h: 26 + Math.random() * 8  | 0 };
     return              { x, type: 'antenna', h: 32 + Math.random() * 22 | 0 };
   }
 
@@ -208,12 +208,19 @@ export class BackgroundSystem {
 
   update(spd: number): void {
     this.bgScrollX += spd;
-    for (const cl of this.clouds) {
+    for (let i = 0; i < this.clouds.length; i++) {
+      const cl = this.clouds[i];
       cl.x -= spd * cl.speed;
       if (cl.x + cl.w / 2 < -10) {
-        cl.x   = W + cl.w / 2;
-        cl.y   = 18 + Math.random() * 180;
-        cl.alpha = 0.022 + Math.random() * 0.035;
+        cl.x = W + cl.w / 2;
+        if (i < 8) {
+          // Night cloud — small, vary alpha
+          cl.y = 18 + Math.random() * 120;
+          cl.alpha = 0.022 + Math.random() * 0.035;
+        } else {
+          // Daytime cloud — large, keep alpha fixed
+          cl.y = 28 + Math.random() * 110;
+        }
       }
     }
     for (const b of this.dayBirds) {
@@ -275,26 +282,25 @@ export class BackgroundSystem {
     const g = this.skyGfx;
     g.clear();
 
-    // Smooth vertical gradient — prussian blue zenith to warm amber-gold horizon
+    // Rich saturated daytime blue sky — deep navy zenith to pale horizon
     const sky = new PIXI.FillGradient({
       type: 'linear',
       start: { x: 0, y: 0 },
       end:   { x: 0, y: GROUND_Y },
       textureSpace: 'global',
     });
-    sky.addColorStop(0.00, 0x0e2040);
-    sky.addColorStop(0.13, 0x1a3e6e);
-    sky.addColorStop(0.28, 0x2e72a8);
-    sky.addColorStop(0.46, 0x58a0cc);
-    sky.addColorStop(0.64, 0x96c8e0);
-    sky.addColorStop(0.79, 0xd4e8c8);
-    sky.addColorStop(0.90, 0xe8d898);
-    sky.addColorStop(1.00, 0xd8c070);
+    sky.addColorStop(0.00, 0x091428);
+    sky.addColorStop(0.10, 0x122240);
+    sky.addColorStop(0.22, 0x1b4280);
+    sky.addColorStop(0.38, 0x2c72b8);
+    sky.addColorStop(0.55, 0x4494cc);
+    sky.addColorStop(0.70, 0x68b0d8);
+    sky.addColorStop(0.84, 0x90c8e0);
+    sky.addColorStop(1.00, 0xb8d8e8);
     g.rect(0, 0, W, GROUND_Y).fill(sky);
 
-    // Warm horizon glow — very subtle overlays, no hard edges
-    g.rect(0, GROUND_Y - 70, W, 70).fill({ color: 0xf0c860, alpha: 0.14 });
-    g.rect(0, GROUND_Y - 30, W, 30).fill({ color: 0xe8a030, alpha: 0.10 });
+    // Very faint warm haze just at the ground horizon
+    g.rect(0, GROUND_Y - 18, W, 18).fill({ color: 0xd0e8c0, alpha: 0.22 });
   }
 
   private _drawSun(): void {
@@ -342,19 +348,18 @@ export class BackgroundSystem {
   private _drawDayMountains(): void {
     const g = this.mountainGfx;
     g.clear();
-    // 4 ranges — full atmospheric perspective (far = hazy lavender, near = rich green)
-    // Farthest: pale lavender-blue haze
-    this._drawMountainRange(g, 0.03, GROUND_Y - 18, 118, 0.0022, 1.18, 0x9098c0, 0.50);
-    this._drawMountainRange(g, 0.03, GROUND_Y - 18, 118, 0.0022, 1.18, 0xb8c0d8, 0.18);
-    // Far-mid: muted slate-teal
-    this._drawMountainRange(g, 0.07, GROUND_Y - 14, 92,  0.0034, 1.88, 0x4a7068, 0.72);
-    this._drawMountainRange(g, 0.07, GROUND_Y - 14, 92,  0.0034, 1.88, 0x70a888, 0.20);
-    // Near-mid: forest green
-    this._drawMountainRange(g, 0.12, GROUND_Y - 10, 74,  0.0048, 2.60, 0x2a6420, 0.88);
-    this._drawMountainRange(g, 0.12, GROUND_Y - 10, 74,  0.0048, 2.60, 0x4a9038, 0.22);
-    // Nearest foreground ridge: dark rich green
-    this._drawMountainRange(g, 0.20, GROUND_Y - 6,  52,  0.0068, 3.40, 0x184010, 0.96);
-    this._drawMountainRange(g, 0.20, GROUND_Y - 6,  52,  0.0068, 3.40, 0x2e6824, 0.28);
+    // Farthest: tall, hazy blue-grey (atmospheric perspective)
+    this._drawMountainRange(g, 0.03, GROUND_Y - 20, 148, 0.0019, 1.18, 0xa0aec0, 0.60);
+    this._drawMountainRange(g, 0.03, GROUND_Y - 20, 148, 0.0019, 1.18, 0xbcc8d8, 0.22);
+    // Second: rocky grey-brown (most visible range)
+    this._drawMountainRange(g, 0.06, GROUND_Y - 16, 122, 0.0026, 1.72, 0x787060, 0.84);
+    this._drawMountainRange(g, 0.06, GROUND_Y - 16, 122, 0.0026, 1.72, 0x908880, 0.28);
+    // Third: darker brown-green foothills
+    this._drawMountainRange(g, 0.12, GROUND_Y - 10, 88,  0.0044, 2.50, 0x485838, 0.90);
+    this._drawMountainRange(g, 0.12, GROUND_Y - 10, 88,  0.0044, 2.50, 0x607050, 0.26);
+    // Nearest ridge: dark green treeline blending into hills
+    this._drawMountainRange(g, 0.22, GROUND_Y - 5,  48,  0.0070, 3.30, 0x203818, 0.96);
+    this._drawMountainRange(g, 0.22, GROUND_Y - 5,  48,  0.0070, 3.30, 0x385828, 0.32);
     this._drawSnowCaps();
   }
 
@@ -362,12 +367,12 @@ export class BackgroundSystem {
     const g = this.mountainGfx;
     const scroll  = 0.03;
     const offset  = this.bgScrollX * scroll;
-    const baseY   = GROUND_Y - 18;
-    const amp     = 118;
-    const freq    = 0.0022;
+    const baseY   = GROUND_Y - 20;  // matches updated mountain baseY
+    const amp     = 148;            // matches updated amplitude
+    const freq    = 0.0019;
     const seed    = 1.18;
     const step    = 5;
-    const snowLine = baseY - amp * 0.36; // y-threshold; lower y = higher peak
+    const snowLine = baseY - amp * 0.38; // threshold — adjusted for taller peaks
 
     let patchOpen = false;
     let patchPts: number[] = [];
@@ -519,21 +524,36 @@ export class BackgroundSystem {
   private _drawDayClouds(): void {
     const g = this.cloudGfx;
     g.clear();
-    // Only render the last 10 entries (daytime clouds), skip the first 8 night ones
     const dayClouds = this.clouds.slice(8);
     for (const cl of dayClouds) {
-      // Soft underside shadow
-      g.ellipse(cl.x,              cl.y + cl.h * 0.38, cl.w * 0.44, cl.h * 0.20)
-       .fill({ color: 0xa8b8c8, alpha: 0.20 });
-      // Main cloud body — multiple overlapping lobes for volume
-      g.ellipse(cl.x,              cl.y,               cl.w * 0.50, cl.h * 0.52).fill({ color: 0xf4f6ff, alpha: 0.80 });
-      g.ellipse(cl.x + cl.w * 0.26, cl.y - cl.h * 0.24, cl.w * 0.42, cl.h * 0.50).fill({ color: 0xffffff, alpha: 0.86 });
-      g.ellipse(cl.x - cl.w * 0.24, cl.y - cl.h * 0.18, cl.w * 0.38, cl.h * 0.46).fill({ color: 0xf8faff, alpha: 0.76 });
-      g.ellipse(cl.x + cl.w * 0.06, cl.y - cl.h * 0.38, cl.w * 0.30, cl.h * 0.40).fill({ color: 0xffffff, alpha: 0.68 });
-      g.ellipse(cl.x - cl.w * 0.10, cl.y - cl.h * 0.32, cl.w * 0.26, cl.h * 0.36).fill({ color: 0xfff8f2, alpha: 0.62 });
-      // Warm afternoon highlight on crown
-      g.ellipse(cl.x + cl.w * 0.08, cl.y - cl.h * 0.44, cl.w * 0.18, cl.h * 0.24)
-       .fill({ color: 0xfff4cc, alpha: 0.28 });
+      const { x, y, w, h } = cl;
+
+      // --- Deep shadow base (darkest underside) ---
+      g.ellipse(x - w * 0.04, y + h * 0.32, w * 0.54, h * 0.30).fill({ color: 0x6080a0, alpha: 0.50 });
+      g.ellipse(x + w * 0.22, y + h * 0.28, w * 0.44, h * 0.26).fill({ color: 0x6888a8, alpha: 0.42 });
+      g.ellipse(x - w * 0.20, y + h * 0.22, w * 0.38, h * 0.24).fill({ color: 0x7090b0, alpha: 0.36 });
+
+      // --- Mid body (grey-blue transition) ---
+      g.ellipse(x - w * 0.22, y + h * 0.06, w * 0.46, h * 0.54).fill({ color: 0xbccce0, alpha: 0.88 });
+      g.ellipse(x + w * 0.24, y + h * 0.03, w * 0.48, h * 0.56).fill({ color: 0xc0d0e2, alpha: 0.90 });
+      g.ellipse(x + w * 0.02, y - h * 0.01, w * 0.52, h * 0.58).fill({ color: 0xc8d8e8, alpha: 0.86 });
+      g.ellipse(x - w * 0.10, y + h * 0.14, w * 0.44, h * 0.50).fill({ color: 0xc4d4e4, alpha: 0.84 });
+
+      // --- Upper body (lightening toward white) ---
+      g.ellipse(x - w * 0.18, y - h * 0.22, w * 0.42, h * 0.52).fill({ color: 0xdce8f4, alpha: 0.92 });
+      g.ellipse(x + w * 0.20, y - h * 0.24, w * 0.46, h * 0.54).fill({ color: 0xe0ecf8, alpha: 0.94 });
+      g.ellipse(x + w * 0.04, y - h * 0.30, w * 0.48, h * 0.54).fill({ color: 0xe8f0fc, alpha: 0.92 });
+      g.ellipse(x - w * 0.12, y - h * 0.18, w * 0.40, h * 0.48).fill({ color: 0xe4eef8, alpha: 0.90 });
+
+      // --- Bright sunlit tops ---
+      g.ellipse(x + w * 0.24, y - h * 0.42, w * 0.38, h * 0.46).fill({ color: 0xf4f8ff, alpha: 0.96 });
+      g.ellipse(x - w * 0.16, y - h * 0.40, w * 0.34, h * 0.44).fill({ color: 0xf6faff, alpha: 0.94 });
+      g.ellipse(x + w * 0.06, y - h * 0.48, w * 0.36, h * 0.46).fill({ color: 0xfafcff, alpha: 0.97 });
+
+      // --- Pure white crown peaks ---
+      g.ellipse(x + w * 0.16, y - h * 0.58, w * 0.24, h * 0.34).fill({ color: 0xffffff, alpha: 0.99 });
+      g.ellipse(x - w * 0.08, y - h * 0.54, w * 0.22, h * 0.32).fill({ color: 0xfffcfa, alpha: 0.95 });
+      g.ellipse(x + w * 0.34, y - h * 0.50, w * 0.20, h * 0.30).fill({ color: 0xffffff, alpha: 0.90 });
     }
   }
 
@@ -732,16 +752,24 @@ export class BackgroundSystem {
       if (d.x < -60 || d.x > W + 40) continue;
       const bx = d.x, by = GROUND_Y;
       if (d.type === 'tree') {
-        g.moveTo(bx, by).lineTo(bx, by - d.h * 0.4)
-         .stroke({ width: 2, color: daytime ? 0x3a2010 : 0x10200a });
-        for (let i = 0; i < 3; i++) {
-          const ty = by - d.h * 0.32 - i * d.h * 0.22;
-          const tw = d.h * 0.44 - i * 4;
-          const tc = daytime
-            ? [0x2e7018, 0x3e9024, 0x50b030][i]
-            : [0x0a180a, 0x182e10, 0x244a18][i];
-          g.poly([bx - tw, ty, bx, ty - d.h * 0.28, bx + tw, ty])
-           .fill(tc).stroke({ width: 0.8, color: daytime ? 0x4ab030 : 0x2a5020, alpha: 0.5 });
+        // Trunk
+        g.moveTo(bx, by).lineTo(bx, by - d.h * 0.28)
+         .stroke({ width: daytime ? 4 : 2, color: daytime ? 0x2a1808 : 0x10200a });
+        // 5-tier pine silhouette (daytime) or 3-tier (night)
+        const tiers = daytime ? 5 : 3;
+        const dayC  = [0x142c0a, 0x1a3c0e, 0x204e12, 0x2a6018, 0x346e1e];
+        const nightC = [0x0a180a, 0x182e10, 0x244a18];
+        for (let i = 0; i < tiers; i++) {
+          const ty = by - d.h * (daytime ? 0.20 : 0.28) - i * d.h * (daytime ? 0.15 : 0.22);
+          const tw = d.h * (daytime ? 0.42 - i * 0.06 : 0.44 - i * 0.04);
+          const tc = daytime ? dayC[i] : nightC[Math.min(i, 2)];
+          g.poly([bx - tw, ty, bx, ty - d.h * (daytime ? 0.21 : 0.28), bx + tw, ty])
+           .fill(tc);
+          if (daytime) {
+            // Sunlit right-face highlight
+            g.poly([bx, ty - d.h * 0.21, bx + tw, ty, bx + tw * 0.6, ty - d.h * 0.08])
+             .fill({ color: 0x2c5c14, alpha: 0.30 });
+          }
         }
       } else if (d.type === 'lamp') {
         g.moveTo(bx, by).lineTo(bx, by - d.h)
