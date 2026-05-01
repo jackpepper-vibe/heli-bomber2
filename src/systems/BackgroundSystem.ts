@@ -260,9 +260,6 @@ export class BackgroundSystem {
     g.clear();
     g.rect(0, GROUND_Y,     W, H - GROUND_Y).fill(0x3e8420);
     g.rect(0, GROUND_Y,     W, 8           ).fill(0x52a030);
-    for (let y = GROUND_Y + 16; y < H; y += 14) {
-      g.moveTo(0, y).lineTo(W, y).stroke({ width: 0.5, color: 0x2e6418, alpha: 0.35 });
-    }
     g.moveTo(0, GROUND_Y).lineTo(W, GROUND_Y).stroke({ width: 2.0, color: 0x5ab832, alpha: 0.9 });
     g.moveTo(0, GROUND_Y - 1).lineTo(W, GROUND_Y - 1).stroke({ width: 4, color: 0x80d840, alpha: 0.14 });
   }

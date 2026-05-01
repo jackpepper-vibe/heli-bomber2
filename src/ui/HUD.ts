@@ -25,7 +25,8 @@ export class HUD {
   setName(name: string): void { this.nameEl.textContent = name; }
   setLevel(level: number): void { this.levelEl.textContent = String(level); }
   setScore(score: number): void { this.scoreEl.textContent = score.toLocaleString(); }
-  setDist(dist: number): void { this.timerEl.textContent = `${Math.max(0, dist)}m`; }
+  setDist(dist: number): void    { this.timerEl.textContent = `${Math.max(0, dist)}m`; }
+  setTimer(secs: number): void   { this.timerEl.textContent = `${Math.max(0, secs)}s`; }
 
   setBombs(bombsLeft: number, level: number): void {
     const limit = BOMBS_PER_LEVEL[level] ?? 0;

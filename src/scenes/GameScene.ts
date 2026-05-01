@@ -85,6 +85,7 @@ export class GameScene {
   private levelStartScore = 0;
 
   private finishLineX = W + LEVEL_DIST;
+  private levelCountdown = 0; // frames remaining for timed levels (level 1)
   private bombsLeft = 0;
   private outOfBombsTriggered = false;
   private outOfBombsFlash = 0;
@@ -248,18 +249,30 @@ export class GameScene {
     // Background
     this.bg.update(spd);
 
-    // Finish line (non-cave levels)
-    if (this.currentLevel !== 5 && this.sceneState === SceneState.Active) {
-      this.finishLineX -= spd;
-      const distLeft = Math.max(0, Math.floor(this.finishLineX - this.heli.x));
-      this.hud.setDist(distLeft);
+    // Level 1: countdown timer; all other non-cave levels: finish line
+    if (this.sceneState === SceneState.Active) {
+      if (this.currentLevel === 1) {
+        this.levelCountdown -= dt;
+        this.hud.setTimer(Math.ceil(this.levelCountdown / 60));
+        if (this.levelCountdown <= 0) {
+          this.sceneState = SceneState.LevelDone;
+          this.fanfareFlash = 18;
+          this.particles.spawnSparks(this.heli.x, this.heli.y, 60);
+          setTimeout(() => this._completeLevelOrEnd(), 400);
+          return;
+        }
+      } else if (this.currentLevel !== 5) {
+        this.finishLineX -= spd;
+        const distLeft = Math.max(0, Math.floor(this.finishLineX - this.heli.x));
+        this.hud.setDist(distLeft);
 
-      if (this.finishLineX < this.heli.x) {
-        this.sceneState = SceneState.LevelDone;
-        this.fanfareFlash = 18;
-        this.particles.spawnSparks(this.heli.x, this.heli.y, 60);
-        setTimeout(() => this._completeLevelOrEnd(), 400);
-        return;
+        if (this.finishLineX < this.heli.x) {
+          this.sceneState = SceneState.LevelDone;
+          this.fanfareFlash = 18;
+          this.particles.spawnSparks(this.heli.x, this.heli.y, 60);
+          setTimeout(() => this._completeLevelOrEnd(), 400);
+          return;
+        }
       }
     }
 
@@ -788,8 +801,8 @@ export class GameScene {
       this.bg.draw(isCityLevel, false, isDaytime);
     }
 
-    // Finish line
-    if (lv !== 5 && !isSeaLevel) {
+    // Finish line (not on level 1 countdown or cave or sea)
+    if (lv !== 1 && lv !== 5 && !isSeaLevel) {
       this.bg.drawFinishLine(this.finishLineX);
     }
 
@@ -905,8 +918,9 @@ export class GameScene {
   // ── Level flow ────────────────────────────────────────────────────────────────
 
   private _startLevel(): void {
-    this.finishLineX = W + LEVEL_DIST;
-    this.sceneState  = SceneState.Active;
+    this.finishLineX    = W + LEVEL_DIST;
+    this.levelCountdown = 25 * 60; // 25 seconds at 60 fps (level 1 only)
+    this.sceneState     = SceneState.Active;
     this.levelStartScore = this.score;
     this.comboCount = 0; this.comboTimer = 0;
     this.outOfBombsFlash = 0; this.outOfBombsTriggered = false;
@@ -931,7 +945,8 @@ export class GameScene {
 
     this.bombsLeft = BOMBS_PER_LEVEL[this.currentLevel] ?? 0;
     this.hud.setBombs(this.bombsLeft, this.currentLevel);
-    this.hud.setDist(LEVEL_DIST);
+    if (this.currentLevel === 1) this.hud.setTimer(25);
+    else this.hud.setDist(LEVEL_DIST);
 
     // Level-specific init
     const lv = this.currentLevel;
