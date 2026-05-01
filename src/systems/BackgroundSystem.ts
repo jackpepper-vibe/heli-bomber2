@@ -12,6 +12,7 @@ interface Cloud  { x: number; y: number; w: number; h: number; alpha: number; sp
 interface BgBuilding { x: number; w: number; h: number; wins: Array<{ rx: number; ry: number; lit: boolean }>; }
 interface GroundDetail { x: number; type: 'tree' | 'lamp' | 'antenna'; h: number; }
 interface DayBird { x: number; y: number; phase: number; speed: number; }
+interface PowerPole { x: number; h: number; }
 
 // Star colours: mostly white/silver, rare warm yellow
 const STAR_COLORS = [0xffffff, 0xffffff, 0xe8eeff, 0xfff8e0, 0xddeeff];
@@ -21,16 +22,20 @@ export class BackgroundSystem {
   private readonly skyGfx:      PIXI.Graphics;
   private readonly starGfx:     PIXI.Graphics;
   private readonly mountainGfx: PIXI.Graphics;
+  private readonly hillGfx:     PIXI.Graphics;
   private readonly cloudGfx:    PIXI.Graphics;
   private readonly bgCityGfx:   PIXI.Graphics;
   private readonly groundGfx:   PIXI.Graphics;
+  private readonly shadowGfx:   PIXI.Graphics;
   private readonly detailGfx:   PIXI.Graphics;
+  private readonly foreGfx:     PIXI.Graphics;
 
   private stars:         Star[]         = [];
   private clouds:        Cloud[]        = [];
   private bgCity:        BgBuilding[]   = [];
   private groundDetails: GroundDetail[] = [];
   private dayBirds:      DayBird[]      = [];
+  private powerPoles:    PowerPole[]    = [];
   private bgScrollX = 0;
 
   constructor() {
@@ -38,13 +43,18 @@ export class BackgroundSystem {
     this.skyGfx      = new PIXI.Graphics();
     this.starGfx     = new PIXI.Graphics();
     this.mountainGfx = new PIXI.Graphics();
+    this.hillGfx     = new PIXI.Graphics();
     this.cloudGfx    = new PIXI.Graphics();
     this.bgCityGfx   = new PIXI.Graphics();
     this.groundGfx   = new PIXI.Graphics();
+    this.shadowGfx   = new PIXI.Graphics();
     this.detailGfx   = new PIXI.Graphics();
+    this.foreGfx     = new PIXI.Graphics();
     this.container.addChild(
       this.skyGfx, this.starGfx, this.mountainGfx,
-      this.cloudGfx, this.bgCityGfx, this.groundGfx, this.detailGfx,
+      this.hillGfx, this.cloudGfx, this.bgCityGfx,
+      this.groundGfx, this.shadowGfx, this.detailGfx,
+      this.foreGfx,
     );
   }
 
@@ -55,6 +65,7 @@ export class BackgroundSystem {
     this._initBgCity();
     this._seedGroundDetails();
     this._initDayBirds();
+    this._initPowerPoles();
     this._drawStaticSky();
     this._drawMoon();
   }
@@ -68,6 +79,13 @@ export class BackgroundSystem {
         phase: Math.random() * Math.PI * 2,
         speed: 0.25 + Math.random() * 0.35,
       });
+    }
+  }
+
+  private _initPowerPoles(): void {
+    this.powerPoles = [];
+    for (let x = 80; x < W * 4; x += 90 + (Math.random() * 60 | 0)) {
+      this.powerPoles.push({ x, h: 55 + (Math.random() * 22 | 0) });
     }
   }
 
@@ -213,19 +231,37 @@ export class BackgroundSystem {
       const nx = (last ? last.x : W) + 28 + Math.random() * 55 | 0;
       this.groundDetails.push(this._mkDetail(nx));
     }
+
+    // Power poles scroll at full speed
+    for (const p of this.powerPoles) p.x -= spd;
+    this.powerPoles = this.powerPoles.filter(p => p.x > -30);
+    const lastPole = this.powerPoles[this.powerPoles.length - 1];
+    if (!lastPole || lastPole.x < W + 80) {
+      const nx = (lastPole?.x ?? W) + 90 + (Math.random() * 60 | 0);
+      this.powerPoles.push({ x: nx, h: 55 + (Math.random() * 22 | 0) });
+    }
   }
 
   // ── Draw ──────────────────────────────────────────────────────────────────────
 
-  draw(showGround: boolean, showSea = false, daytime = false): void {
+  draw(showGround: boolean, showSea = false, daytime = false, heliX = -1, heliY = -1): void {
     if (daytime) {
       this._drawDaySky();
       this._drawSun();
       this._drawDayMountains();
+      this._drawRollingHills();
       this._drawDayClouds();
       this._drawDayBirds();
-      if (showGround) { this._drawDayGround(); this._drawGroundDetails(true); }
+      if (showGround) {
+        this._drawDayGround();
+        this._drawGroundDetails(true);
+        this._drawHeliShadow(heliX, heliY);
+      }
+      this._drawPowerLines(true);
     } else {
+      this.hillGfx.clear();
+      this.shadowGfx.clear();
+      this.foreGfx.clear();
       this._drawStars();
       this._drawMountains();
       this._drawClouds();
@@ -265,34 +301,42 @@ export class BackgroundSystem {
     const g = this.starGfx;
     g.clear();
     const now = Date.now();
-    const sx = 660, sy = 118; // lower — afternoon sun position
+    const sx = 660, sy = 118;
 
-    // Volumetric god rays (drawn behind disc)
-    for (let i = 0; i < 12; i++) {
-      const a    = (i / 12) * Math.PI * 2 + now * 0.000035;
-      const rayL = 170 + 60 * Math.sin(now * 0.0009 + i * 0.88);
-      const hw   = 0.032;
-      const x1 = sx + Math.cos(a - hw) * 42, y1 = sy + Math.sin(a - hw) * 42;
-      const x2 = sx + Math.cos(a + hw) * 42, y2 = sy + Math.sin(a + hw) * 42;
+    // Wide screen-space atmospheric haze around sun
+    g.circle(sx, sy, 220).fill({ color: 0xfff4c0, alpha: 0.018 });
+    g.circle(sx, sy, 170).fill({ color: 0xffeea0, alpha: 0.032 });
+
+    // Volumetric god rays — wider and longer
+    for (let i = 0; i < 16; i++) {
+      const a    = (i / 16) * Math.PI * 2 + now * 0.000028;
+      const rayL = 280 + 100 * Math.sin(now * 0.0007 + i * 0.78);
+      const hw   = 0.046 + 0.012 * Math.sin(now * 0.0011 + i * 2.1);
+      const x1 = sx + Math.cos(a - hw) * 38, y1 = sy + Math.sin(a - hw) * 38;
+      const x2 = sx + Math.cos(a + hw) * 38, y2 = sy + Math.sin(a + hw) * 38;
       const x3 = sx + Math.cos(a + hw) * rayL, y3 = sy + Math.sin(a + hw) * rayL;
       const x4 = sx + Math.cos(a - hw) * rayL, y4 = sy + Math.sin(a - hw) * rayL;
-      const alpha = (0.032 + 0.018 * Math.sin(now * 0.0013 + i * 1.3))
-                  * (0.55 + 0.45 * Math.sin(a + now * 0.00006));
+      const base  = 0.048 + 0.022 * Math.sin(now * 0.0013 + i * 1.3);
+      const angle_factor = 0.50 + 0.50 * Math.sin(a + now * 0.00005);
+      const alpha = base * angle_factor;
       g.poly([x1, y1, x2, y2, x3, y3, x4, y4]).fill({ color: 0xfff0a0, alpha });
     }
 
-    // Atmospheric aureole
-    g.circle(sx, sy, 140).fill({ color: 0xfff8e0, alpha: 0.028 });
-    g.circle(sx, sy, 108).fill({ color: 0xffef98, alpha: 0.055 });
-    g.circle(sx, sy,  80).fill({ color: 0xffe860, alpha: 0.095 });
-    g.circle(sx, sy,  58).fill({ color: 0xfff0a0, alpha: 0.18  });
-    g.circle(sx, sy,  42).fill({ color: 0xfffacc, alpha: 0.45  });
-    // Disc
-    g.circle(sx, sy, 30).fill({ color: 0xfffde8, alpha: 0.92 });
-    g.circle(sx, sy, 22).fill({ color: 0xffffff, alpha: 0.88 });
-    // Lens flare streak (horizontal)
-    g.rect(sx - 160, sy - 1.5, 320, 3).fill({ color: 0xfff4aa, alpha: 0.06 });
-    g.rect(sx - 90,  sy - 0.8, 180, 1.6).fill({ color: 0xffffff, alpha: 0.05 });
+    // Golden horizontal lens flare across sky
+    g.rect(0, sy - 1, W, 2).fill({ color: 0xffe880, alpha: 0.04 });
+    g.rect(sx - 220, sy - 0.8, 440, 1.6).fill({ color: 0xffffff, alpha: 0.05 });
+
+    // Atmospheric aureole layers
+    g.circle(sx, sy, 140).fill({ color: 0xfff8e0, alpha: 0.032 });
+    g.circle(sx, sy, 108).fill({ color: 0xffef98, alpha: 0.065 });
+    g.circle(sx, sy,  80).fill({ color: 0xffe860, alpha: 0.110 });
+    g.circle(sx, sy,  58).fill({ color: 0xfff0a0, alpha: 0.220 });
+    g.circle(sx, sy,  42).fill({ color: 0xfffacc, alpha: 0.500 });
+    // Sun disc
+    g.circle(sx, sy, 30).fill({ color: 0xfffde8, alpha: 0.94 });
+    g.circle(sx, sy, 22).fill({ color: 0xffffff, alpha: 0.90 });
+    // Bright inner core
+    g.circle(sx, sy, 12).fill({ color: 0xffffff, alpha: 0.98 });
   }
 
   private _drawDayMountains(): void {
@@ -311,6 +355,165 @@ export class BackgroundSystem {
     // Nearest foreground ridge: dark rich green
     this._drawMountainRange(g, 0.20, GROUND_Y - 6,  52,  0.0068, 3.40, 0x184010, 0.96);
     this._drawMountainRange(g, 0.20, GROUND_Y - 6,  52,  0.0068, 3.40, 0x2e6824, 0.28);
+    this._drawSnowCaps();
+  }
+
+  private _drawSnowCaps(): void {
+    const g = this.mountainGfx;
+    const scroll  = 0.03;
+    const offset  = this.bgScrollX * scroll;
+    const baseY   = GROUND_Y - 18;
+    const amp     = 118;
+    const freq    = 0.0022;
+    const seed    = 1.18;
+    const step    = 5;
+    const snowLine = baseY - amp * 0.36; // y-threshold; lower y = higher peak
+
+    let patchOpen = false;
+    let patchPts: number[] = [];
+
+    const flush = (endX: number) => {
+      if (!patchOpen || patchPts.length < 6) { patchOpen = false; patchPts = []; return; }
+      patchPts.push(endX, snowLine);
+      g.poly([...patchPts]).fill({ color: 0xeef4ff, alpha: 0.90 });
+      // Bright highlight on windward face (left side of each cap)
+      const hl = patchPts.slice(0, Math.min(10, patchPts.length));
+      if (hl.length >= 6) g.poly(hl).fill({ color: 0xffffff, alpha: 0.40 });
+      patchOpen = false;
+      patchPts  = [];
+    };
+
+    for (let sx = 0; sx <= W + step; sx += step) {
+      const h  = this._mtnH(sx + offset, amp, freq, seed);
+      const py = Math.max(14, baseY - amp * 0.55 - Math.max(0, h));
+      if (py <= snowLine) {
+        if (!patchOpen) { patchPts = [sx, snowLine]; patchOpen = true; }
+        patchPts.push(sx, py);
+      } else {
+        if (patchOpen) flush(sx);
+      }
+    }
+    flush(W + step);
+  }
+
+  private _drawRollingHills(): void {
+    const g = this.hillGfx;
+    g.clear();
+
+    // Far hills — lighter sage green, slower scroll
+    const off1 = this.bgScrollX * 0.18;
+    const pts1: number[] = [0, GROUND_Y];
+    for (let sx = 0; sx <= W; sx += 4) {
+      const h = 30 * Math.sin((sx + off1) * 0.0080 + 0.5)
+              + 14 * Math.sin((sx + off1) * 0.0162 + 1.2)
+              +  7 * Math.sin((sx + off1) * 0.0038 + 2.1);
+      pts1.push(sx, GROUND_Y - 26 - Math.max(0, h));
+    }
+    pts1.push(W, GROUND_Y);
+    g.poly(pts1).fill({ color: 0x5aaa30, alpha: 0.72 });
+
+    // Near hills — richer green, faster scroll
+    const off2 = this.bgScrollX * 0.30;
+    const pts2: number[] = [0, GROUND_Y];
+    for (let sx = 0; sx <= W; sx += 4) {
+      const h = 22 * Math.sin((sx + off2) * 0.0096 + 1.8)
+              + 10 * Math.sin((sx + off2) * 0.0208 + 0.7)
+              +  5 * Math.sin((sx + off2) * 0.0051 + 3.4);
+      pts2.push(sx, GROUND_Y - 14 - Math.max(0, h));
+    }
+    pts2.push(W, GROUND_Y);
+    g.poly(pts2).fill({ color: 0x3e8818, alpha: 0.88 });
+
+    // Ridge highlight on near hills
+    const ridgePts: number[] = [];
+    for (let sx = 0; sx <= W; sx += 4) {
+      const h = 22 * Math.sin((sx + off2) * 0.0096 + 1.8)
+              + 10 * Math.sin((sx + off2) * 0.0208 + 0.7)
+              +  5 * Math.sin((sx + off2) * 0.0051 + 3.4);
+      ridgePts.push(sx, GROUND_Y - 14 - Math.max(0, h));
+    }
+    if (ridgePts.length >= 4) {
+      g.moveTo(ridgePts[0], ridgePts[1]);
+      for (let i = 2; i < ridgePts.length; i += 2) g.lineTo(ridgePts[i], ridgePts[i + 1]);
+      g.stroke({ width: 1.5, color: 0x70cc40, alpha: 0.55 });
+    }
+  }
+
+  private _drawPowerLines(daytime: boolean): void {
+    const g = this.foreGfx;
+    g.clear();
+    const poleCol = daytime ? 0x3a3020 : 0x1a1a1a;
+    const wireCol = daytime ? 0x28221a : 0x111111;
+    const poleAlpha = daytime ? 0.75 : 0.88;
+
+    // Draw wires between adjacent poles (behind poles)
+    for (let i = 0; i < this.powerPoles.length - 1; i++) {
+      const p1 = this.powerPoles[i];
+      const p2 = this.powerPoles[i + 1];
+      if (p2.x < -20 || p1.x > W + 20) continue;
+      // Three wire heights on cross-arm
+      const wireFracs = [0.14, 0.28, 0.42];
+      for (const wf of wireFracs) {
+        const y1 = GROUND_Y - p1.h * (1 - wf);
+        const y2 = GROUND_Y - p2.h * (1 - wf);
+        const midX = (p1.x + p2.x) * 0.5;
+        const sag  = (p2.x - p1.x) * 0.038;
+        const midY = Math.max(y1, y2) + sag;
+        g.moveTo(p1.x, y1)
+         .quadraticCurveTo(midX, midY, p2.x, y2)
+         .stroke({ width: 1, color: wireCol, alpha: daytime ? 0.50 : 0.72 });
+      }
+    }
+
+    // Draw poles on top of wires
+    for (const p of this.powerPoles) {
+      if (p.x < -20 || p.x > W + 20) continue;
+      const topY    = GROUND_Y - p.h;
+      const armY    = topY + p.h * 0.14;
+      const armHalf = 13;
+
+      // Main pole
+      g.moveTo(p.x, GROUND_Y).lineTo(p.x, topY)
+       .stroke({ width: 3.5, color: poleCol, alpha: poleAlpha });
+      // Cross-arm
+      g.moveTo(p.x - armHalf, armY).lineTo(p.x + armHalf, armY)
+       .stroke({ width: 2.5, color: poleCol, alpha: poleAlpha });
+      // Insulators on arm ends + top
+      const insCols = [{ x: p.x - armHalf, y: armY }, { x: p.x + armHalf, y: armY }, { x: p.x, y: topY }];
+      for (const ins of insCols) {
+        g.circle(ins.x, ins.y, 2.5).fill({ color: daytime ? 0x8a7a50 : 0x555555, alpha: 0.85 });
+      }
+    }
+
+    // Foreground grass blades (daytime only)
+    if (daytime) {
+      const scrollOff = this.bgScrollX * 1.1;
+      for (let i = 0; i < 55; i++) {
+        const gx = ((scrollOff + i * (W / 55) + Math.sin(i * 7.3) * 12) % W + W) % W;
+        const gh = 5 + Math.sin(i * 3.7 + scrollOff * 0.04) * 3;
+        const lean = Math.cos(i * 2.1 + scrollOff * 0.03) * 2;
+        g.moveTo(gx, GROUND_Y + 2)
+         .lineTo(gx + lean, GROUND_Y + 2 - gh)
+         .stroke({ width: 1.5, color: 0x68c830, alpha: 0.65 });
+      }
+    }
+  }
+
+  private _drawHeliShadow(hx: number, hy: number): void {
+    const g = this.shadowGfx;
+    g.clear();
+    if (hx < 0 || hy >= GROUND_Y - 18) return;
+    const height = GROUND_Y - hy;
+    const t      = Math.min(1, height / 340);
+    const rx     = 52 * (1 - t * 0.60);
+    const ry     =  9 * (1 - t * 0.60);
+    const alpha  = 0.45 * (1 - t * 0.78);
+    // Sun is at x=660 (right side) so shadow projects slightly left
+    const shadowX = hx - 6 - t * 18;
+    // Soft layered ellipses
+    g.ellipse(shadowX, GROUND_Y + 4, rx * 1.70, ry * 1.70).fill({ color: 0x000000, alpha: alpha * 0.12 });
+    g.ellipse(shadowX, GROUND_Y + 3, rx * 1.35, ry * 1.35).fill({ color: 0x040808, alpha: alpha * 0.22 });
+    g.ellipse(shadowX, GROUND_Y + 2, rx,        ry        ).fill({ color: 0x0a1408, alpha: alpha * 0.55 });
   }
 
   private _drawDayClouds(): void {
