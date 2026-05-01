@@ -232,30 +232,45 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #000;
+      background: linear-gradient(
+        to bottom,
+        #0e2040 0%,
+        #1a3e6e 13%,
+        #2e72a8 28%,
+        #58a0cc 46%,
+        #96c8e0 64%,
+        #d4e8c8 79%,
+        #e8d898 90%,
+        #d8c070 100%
+      );
       z-index: 30;
     }
 
     .splash-title {
       font-size: 52px;
       font-weight: bold;
-      color: #00ff41;
-      text-shadow: 0 0 40px rgba(0,255,65,0.8);
+      color: #fff8e0;
+      text-shadow: 0 0 40px rgba(255,196,48,0.75), 0 0 90px rgba(255,140,0,0.35), 0 2px 0 rgba(0,0,0,0.45);
       letter-spacing: 0.08em;
       margin-bottom: 6px;
     }
 
+    .title-num {
+      color: #ffd060;
+      text-shadow: 0 0 30px rgba(255,210,60,1.0), 0 0 70px rgba(255,160,0,0.7), 0 2px 0 rgba(0,0,0,0.45);
+    }
+
     .splash-sub {
       font-size: 12px;
-      color: #00aa28;
+      color: rgba(200,230,255,0.7);
       letter-spacing: 0.3em;
       margin-bottom: 32px;
     }
 
     .splash-input {
-      background: #000;
-      border: 1px solid #00ff41;
-      color: #00ff41;
+      background: rgba(14,32,64,0.65);
+      border: 1px solid rgba(255,196,60,0.55);
+      color: #fff8e0;
       font-family: 'Courier New', monospace;
       font-size: 16px;
       padding: 8px 16px;
@@ -267,7 +282,7 @@
       margin-bottom: 14px;
     }
 
-    .splash-input::placeholder { color: #004a10; }
+    .splash-input::placeholder { color: rgba(255,196,60,0.3); }
 
     .btn {
       background: #000;
@@ -287,16 +302,29 @@
       box-shadow: 0 0 22px rgba(0,255,65,0.55);
     }
 
+    /* Splash-scoped button overrides (day palette) */
+    #splash .btn {
+      background: rgba(14,32,64,0.55);
+      border: 1px solid rgba(255,196,60,0.55);
+      color: #fff8e0;
+    }
+
+    #splash .btn:hover {
+      background: rgba(255,196,60,0.85);
+      color: #0e2040;
+      box-shadow: 0 0 24px rgba(255,196,60,0.65);
+    }
+
     #splash-scores {
       margin-top: 28px;
       width: 440px;
-      border-top: 1px solid #002200;
+      border-top: 1px solid rgba(255,196,60,0.18);
       padding-top: 16px;
     }
 
     .scores-title {
       font-size: 10px;
-      color: #00aa28;
+      color: rgba(200,230,255,0.65);
       letter-spacing: 0.3em;
       margin-bottom: 10px;
       text-align: center;
@@ -313,14 +341,14 @@
       gap: 8px;
       font-size: 12px;
       padding: 2px 0;
-      color: #007a20;
+      color: rgba(200,220,255,0.45);
     }
 
-    .score-row.hi { color: #00ff41; }
-    .score-row .rk { color: #004a10; width: 22px; }
+    .score-row.hi { color: #ffd060; }
+    .score-row .rk { color: rgba(255,196,60,0.28); width: 22px; }
     .score-row .nm { flex: 1; }
-    .score-row .pts { color: #aaffbb; }
-    .no-scores { color: #003a10; font-size: 11px; text-align: center; padding: 8px; }
+    .score-row .pts { color: rgba(255,240,180,0.75); }
+    .no-scores { color: rgba(255,196,60,0.28); font-size: 11px; text-align: center; padding: 8px; }
 
     /* ── Heli select ─────────────────────────────────────────── */
     #heli-select {
@@ -438,7 +466,7 @@
 
     <!-- Splash / title screen -->
     <div id="splash">
-      <div class="splash-title">HELI-BOMBER</div>
+      <div class="splash-title">HELI BOMBER <span class="title-num">2</span></div>
       <div class="splash-sub">CLASSIFIED STRIKE MISSION</div>
       <input id="player-name" class="splash-input" type="text" maxlength="12" placeholder="ENTER PILOT NAME" spellcheck="false" />
       <button id="start-btn" class="btn">LAUNCH MISSION</button>

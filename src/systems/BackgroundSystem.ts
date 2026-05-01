@@ -238,20 +238,27 @@ export class BackgroundSystem {
   private _drawDaySky(): void {
     const g = this.skyGfx;
     g.clear();
-    // Warm golden-afternoon gradient — deep prussian blue to amber horizon
-    const bands = [
-      { y: 0,           h: 65,             color: 0x0e2040 },
-      { y: 65,          h: 70,             color: 0x1a3e6e },
-      { y: 135,         h: 75,             color: 0x2e72a8 },
-      { y: 210,         h: 80,             color: 0x58a0cc },
-      { y: 290,         h: 80,             color: 0x96c8e0 },
-      { y: 370,         h: 60,             color: 0xd4e8c8 },
-      { y: 430,         h: GROUND_Y - 430, color: 0xe8d898 },
-    ];
-    for (const b of bands) g.rect(0, b.y, W, b.h).fill(b.color);
-    // Warm atmospheric glow at horizon
-    g.rect(0, GROUND_Y - 60, W, 60).fill({ color: 0xf0c860, alpha: 0.22 });
-    g.rect(0, GROUND_Y - 28, W, 28).fill({ color: 0xe8a840, alpha: 0.18 });
+
+    // Smooth vertical gradient — prussian blue zenith to warm amber-gold horizon
+    const sky = new PIXI.FillGradient({
+      type: 'linear',
+      start: { x: 0, y: 0 },
+      end:   { x: 0, y: GROUND_Y },
+      textureSpace: 'global',
+    });
+    sky.addColorStop(0.00, 0x0e2040);
+    sky.addColorStop(0.13, 0x1a3e6e);
+    sky.addColorStop(0.28, 0x2e72a8);
+    sky.addColorStop(0.46, 0x58a0cc);
+    sky.addColorStop(0.64, 0x96c8e0);
+    sky.addColorStop(0.79, 0xd4e8c8);
+    sky.addColorStop(0.90, 0xe8d898);
+    sky.addColorStop(1.00, 0xd8c070);
+    g.rect(0, 0, W, GROUND_Y).fill(sky);
+
+    // Warm horizon glow — very subtle overlays, no hard edges
+    g.rect(0, GROUND_Y - 70, W, 70).fill({ color: 0xf0c860, alpha: 0.14 });
+    g.rect(0, GROUND_Y - 30, W, 30).fill({ color: 0xe8a030, alpha: 0.10 });
   }
 
   private _drawSun(): void {
