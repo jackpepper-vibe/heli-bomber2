@@ -1,6 +1,9 @@
 import * as PIXI from 'pixi.js';
-import { GROUND_Y, COL_GREEN, COL_LT_GREEN } from '../utils/constants';
+import { GROUND_Y, COL_LT_GREEN } from '../utils/constants';
 import { randRange } from '../utils/math';
+
+// Cold spark colours — steel-blue impact debris
+const COLD_SPARK_COLS = [0x5599ee, 0x88bbff, 0x3366cc] as const;
 
 interface Spark {
   x: number; y: number;
@@ -76,7 +79,7 @@ export class ParticleSystem {
       const s = 2 + Math.random() * 6;
       const color = warm
         ? [0xffdd00, 0xff8800, 0xff4400][Math.floor(Math.random() * 3)]
-        : COL_GREEN;
+        : COLD_SPARK_COLS[Math.floor(Math.random() * COLD_SPARK_COLS.length)];
       this.sparks.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 1.5,
         life: 22 + Math.random() * 14 | 0, maxL: 36, color });
     }
@@ -110,7 +113,7 @@ export class ParticleSystem {
       const hot = Math.random() > 0.45;
       const color = hot
         ? [0xff8800, 0xffcc00, 0xff4400][Math.floor(Math.random() * 3)]
-        : [COL_GREEN, COL_LT_GREEN, 0x004010][Math.floor(Math.random() * 3)];
+        : [0x3a5a3a, COL_LT_GREEN, 0x2a4030][Math.floor(Math.random() * 3)];
       this.debrisArr.push({
         x, y,
         vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd - 2.5,
@@ -124,7 +127,7 @@ export class ParticleSystem {
     }
   }
 
-  addScorePopup(x: number, y: number, message: string, color = COL_GREEN): void {
+  addScorePopup(x: number, y: number, message: string, color = COL_LT_GREEN): void {
     const isCombo = message.includes('COMBO') || message.includes('x');
     const node = new PIXI.Text({
       text: message,

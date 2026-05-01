@@ -7,6 +7,8 @@ import {
   OBS_W, OBS_SPD,
 } from '../utils/constants';
 import { decayShake } from '../utils/math';
+import { SceneState } from '../core/GameStateMachine';
+import { Pool } from '../utils/Pool';
 import type { AudioSystem } from '../core/AudioSystem';
 import type { InputSystem } from '../core/InputSystem';
 import type { HUD } from '../ui/HUD';
@@ -15,8 +17,7 @@ import type { LevelTransition } from '../ui/LevelTransition';
 import { Helicopter }          from '../entities/Helicopter';
 import { BuildingRenderer, mkBuilding, checkBombHit, seedBuildings } from '../entities/Building';
 import type { BuildingData }   from '../entities/Building';
-import { BombRenderer, spawnBomb } from '../entities/Bomb';
-import type { BombData }       from '../entities/Bomb';
+import { BombRenderer, BombData } from '../entities/Bomb';
 import { PowerUpRenderer, maybeSpawnPowerUp, updatePowerUps, checkPowerUpCollect, applyPowerUp } from '../entities/PowerUp';
 import type { PowerUpData, ActivePowers } from '../entities/PowerUp';
 import { MissileRenderer, makeLaunchers, resetLaunchers, updateMissiles, fireFwdMissile, updateFwdMissiles, fireStormMissile, updateStormMissiles } from '../entities/Missile';
@@ -75,12 +76,13 @@ export class GameScene {
   // Overlay text for crash/fanfare
   private readonly overlayText: PIXI.Text;
 
+  // FSM — replaces gameRunning / levelDone booleans
+  private sceneState: SceneState = SceneState.Idle;
+
   // Game state
   private score = 0;
   private currentLevel = 1;
   private levelStartScore = 0;
-  private gameRunning = false;
-  private levelDone = false;
 
   private finishLineX = W + LEVEL_DIST;
   private bombsLeft = 0;
@@ -121,6 +123,9 @@ export class GameScene {
   private seaMissileTimer = 140;
   private stormMissiles: MissileData[] = [];
   private stormMissileTimer = 100;
+
+  // Object pool
+  private readonly bombPool = new Pool<BombData>(() => new BombData(), 16);
 
   private onGameOver: ((score: number) => void) = () => undefined;
 
@@ -213,15 +218,17 @@ export class GameScene {
     this.onGameOver = cb;
   }
 
-  update(_dt: number): void {
-    if (!this.gameRunning) return;
+  update(dt: number): void {
+    if (this.sceneState === SceneState.Transition ||
+        this.sceneState === SceneState.Over ||
+        this.sceneState === SceneState.Idle) return;
 
     this.input.tick();
     const intent = this.input.intent;
 
     // Heli movement
-    this.heli.applyIntent(intent);
-    this.heli.update();
+    this.heli.applyIntent(intent, dt);
+    this.heli.update(dt);
 
     // Cave-specific constraint
     if (this.currentLevel === 5) {
@@ -244,13 +251,13 @@ export class GameScene {
     this.bg.update(spd);
 
     // Finish line (non-cave levels)
-    if (this.currentLevel !== 5 && !this.levelDone) {
+    if (this.currentLevel !== 5 && this.sceneState === SceneState.Active) {
       this.finishLineX -= spd;
       const distLeft = Math.max(0, Math.floor(this.finishLineX - this.heli.x));
       this.hud.setDist(distLeft);
 
       if (this.finishLineX < this.heli.x) {
-        this.levelDone = true;
+        this.sceneState = SceneState.LevelDone;
         this.fanfareFlash = 18;
         this.particles.spawnSparks(this.heli.x, this.heli.y, 60);
         setTimeout(() => this._completeLevelOrEnd(), 400);
@@ -285,7 +292,7 @@ export class GameScene {
   }
 
   destroy(): void {
-    this.gameRunning = false;
+    this.sceneState = SceneState.Over;
     this.hud.hide();
   }
 
@@ -306,17 +313,21 @@ export class GameScene {
   private _dropBomb(): void {
     if (this.bombsLeft <= 0) return;
     const s = this.heli.model.scale;
-    this.bombs.push(spawnBomb(this.heli.x + 6, this.heli.y + 13 * s));
+    const b1 = this.bombPool.acquire();
+    b1.reset(this.heli.x + 6, this.heli.y + 13 * s);
+    this.bombs.push(b1);
     if (this.heli.model.id === 2) {
-      this.bombs.push(spawnBomb(this.heli.x - 18 * s, this.heli.y + 13 * s));
+      const b2 = this.bombPool.acquire();
+      b2.reset(this.heli.x - 18 * s, this.heli.y + 13 * s);
+      this.bombs.push(b2);
     }
     this.bombsLeft--;
     this.audio.bombDrop();
     this.hud.setBombs(this.bombsLeft, this.currentLevel);
-    if (this.bombsLeft === 0 && !this.outOfBombsTriggered && !this.levelDone) {
+    if (this.bombsLeft === 0 && !this.outOfBombsTriggered && this.sceneState === SceneState.Active) {
       this.outOfBombsTriggered = true;
       this.outOfBombsFlash = 1;
-      setTimeout(() => { if (this.gameRunning) this._completeLevelOrEnd(); }, 2000);
+      setTimeout(() => { if (this.sceneState !== SceneState.Over) this._completeLevelOrEnd(); }, 2000);
     }
   }
 
@@ -417,7 +428,7 @@ export class GameScene {
     this.balloons = balloons; this.birds = birds;
 
     // Bird collision (-500 pts)
-    if (!this.levelDone && checkBirdCollision(this.birds, this.heli.x, this.heli.y, this.heli.model.hitMult)) {
+    if (this.sceneState === SceneState.Active && checkBirdCollision(this.birds, this.heli.x, this.heli.y, this.heli.model.hitMult)) {
       this.particles.spawnSparks(this.heli.x, this.heli.y);
       this._addScore(-500);
       this.audio.heliHit();
@@ -465,8 +476,8 @@ export class GameScene {
     this.fwdMissiles = updateFwdMissiles(this.fwdMissiles, (m) => this.cave.checkObstacleHit(m));
     // Update cave HUD distance via scrollX
     this.hud.setDist(Math.max(0, LEVEL_DIST - Math.floor(this.cave.currentScroll)));
-    if (this.cave.currentScroll >= LEVEL_DIST && !this.levelDone) {
-      this.levelDone = true;
+    if (this.cave.currentScroll >= LEVEL_DIST && this.sceneState === SceneState.Active) {
+      this.sceneState = SceneState.LevelDone;
       setTimeout(() => this._completeLevelOrEnd(), 500);
     }
   }
@@ -615,46 +626,52 @@ export class GameScene {
 
   private _updateBombs(): void {
     const lv = this.currentLevel;
-    this.bombs = this.bombs.filter(bm => {
+    const keep: BombData[] = [];
+
+    for (const bm of this.bombs) {
       bm.y += 3.5; // BOMB_SPD
+      let alive = true;
 
       // Level 9: ship hit or water splash
       if (lv === 9) {
         if (bm.y > GROUND_Y + 8) {
           this.particles.spawnExplosion(bm.x, GROUND_Y - 2, 0.5);
           this.particles.spawnSplash(bm.x);
-          return false;
-        }
-        for (let si = this.ships.length - 1; si >= 0; si--) {
-          const s = this.ships[si];
-          if (checkBombHitShip(bm, s)) {
-            s.hp--;
-            this.comboCount++; this.comboTimer = COMBO_WINDOW;
-            const mult = this._comboMult();
-            const doub = this.powers.score2x > 0 ? 2 : 1;
-            if (s.hp <= 0) {
-              this.particles.spawnExplosion(s.x + s.w * 0.5, s.y, 2.4);
-              this.particles.spawnExplosion(s.x + s.w * 0.3, s.y + s.h * 0.3, 1.5);
-              const base = s.def.points;
-              const pts = base * mult * doub;
-              this._addScore(pts);
-              const lbl = `${s.def.label}! ${mult > 1 ? `COMBO x${mult}! ` : ''}+${pts}`;
-              this.particles.addScorePopup(bm.x, bm.y, lbl, 0xffff44);
-              const pu = maybeSpawnPowerUp(s.x + s.w * 0.5, s.y);
-              if (pu) this.powerUps.push(pu);
-              this.ships.splice(si, 1);
-            } else {
-              this.particles.spawnExplosion(bm.x, bm.y, 1.0);
-              const pts = 80 * mult * doub;
-              this._addScore(pts);
-              this.particles.addScorePopup(bm.x, bm.y, `+${pts}`, mult > 1 ? 0xffff44 : COL_LT_GREEN);
+          alive = false;
+        } else {
+          for (let si = this.ships.length - 1; si >= 0; si--) {
+            const s = this.ships[si];
+            if (checkBombHitShip(bm, s)) {
+              s.hp--;
+              this.comboCount++; this.comboTimer = COMBO_WINDOW;
+              const mult = this._comboMult();
+              const doub = this.powers.score2x > 0 ? 2 : 1;
+              if (s.hp <= 0) {
+                this.particles.spawnExplosion(s.x + s.w * 0.5, s.y, 2.4);
+                this.particles.spawnExplosion(s.x + s.w * 0.3, s.y + s.h * 0.3, 1.5);
+                const base = s.def.points;
+                const pts = base * mult * doub;
+                this._addScore(pts);
+                const lbl = `${s.def.label}! ${mult > 1 ? `COMBO x${mult}! ` : ''}+${pts}`;
+                this.particles.addScorePopup(bm.x, bm.y, lbl, 0xffff44);
+                const pu = maybeSpawnPowerUp(s.x + s.w * 0.5, s.y);
+                if (pu) this.powerUps.push(pu);
+                this.ships.splice(si, 1);
+              } else {
+                this.particles.spawnExplosion(bm.x, bm.y, 1.0);
+                const pts = 80 * mult * doub;
+                this._addScore(pts);
+                this.particles.addScorePopup(bm.x, bm.y, `+${pts}`, mult > 1 ? 0xffff44 : COL_LT_GREEN);
+              }
+              this.audio.bombHit();
+              this.shakeMag = Math.max(this.shakeMag, 5);
+              alive = false;
+              break;
             }
-            this.audio.bombHit();
-            this.shakeMag = Math.max(this.shakeMag, 5);
-            return false;
           }
         }
-        return true;
+        if (!alive) { this.bombPool.release(bm); } else { keep.push(bm); }
+        continue;
       }
 
       // Level 8: mine hit
@@ -668,63 +685,70 @@ export class GameScene {
             this.particles.spawnComboPopup(bm.x, bm.y, this.comboCount, pts, this.powers.score2x > 0);
             this.audio.bombHit();
             this.shakeMag = Math.max(this.shakeMag, 5);
-            return false;
+            alive = false;
+            break;
           }
         }
       }
 
       // Ground hit
-      if (bm.y > GROUND_Y + 10) {
+      if (alive && bm.y > GROUND_Y + 10) {
         this.particles.spawnExplosion(bm.x, GROUND_Y - 4, 0.6);
-        return false;
+        alive = false;
       }
 
       // Building hit
-      for (let bi = this.buildings.length - 1; bi >= 0; bi--) {
-        const b = this.buildings[bi];
-        const layerIdx = checkBombHit(b, bm.x, bm.y);
-        if (layerIdx < 0) continue;
+      if (alive) {
+        for (let bi = this.buildings.length - 1; bi >= 0; bi--) {
+          const b = this.buildings[bi];
+          const layerIdx = checkBombHit(b, bm.x, bm.y);
+          if (layerIdx < 0) continue;
 
-        this.comboCount++; this.comboTimer = COMBO_WINDOW;
-        const mult  = this._comboMult();
-        const doub  = this.powers.score2x > 0 ? 2 : 1;
-        b.hp--;
-        if (b.hp <= 0) {
-          const collapseBase = b.type === 'fuel' ? 400 : b.type === 'radar' ? 350 :
-            b.type === 'bunker' ? 600 : 150 * b.totalLayers;
-          const pts = collapseBase * mult * doub;
-          if (b.type === 'fuel') {
-            const fx = b.x + b.baseW / 2;
-            this.particles.spawnExplosion(fx, bm.y, 3.5);
-            this.particles.spawnExplosion(fx - 18, bm.y + 8, 2.2);
-            this.particles.spawnExplosion(fx + 18, bm.y + 8, 2.2);
-            setTimeout(() => this.particles.spawnExplosion(fx, bm.y - 10, 2.0), 120);
+          this.comboCount++; this.comboTimer = COMBO_WINDOW;
+          const mult = this._comboMult();
+          const doub = this.powers.score2x > 0 ? 2 : 1;
+          b.hp--;
+          if (b.hp <= 0) {
+            const collapseBase = b.type === 'fuel' ? 400 : b.type === 'radar' ? 350 :
+              b.type === 'bunker' ? 600 : 150 * b.totalLayers;
+            const pts = collapseBase * mult * doub;
+            if (b.type === 'fuel') {
+              const fx = b.x + b.baseW / 2;
+              this.particles.spawnExplosion(fx, bm.y, 3.5);
+              this.particles.spawnExplosion(fx - 18, bm.y + 8, 2.2);
+              this.particles.spawnExplosion(fx + 18, bm.y + 8, 2.2);
+              setTimeout(() => this.particles.spawnExplosion(fx, bm.y - 10, 2.0), 120);
+            } else {
+              this.particles.spawnExplosion(bm.x, bm.y, 1.6);
+            }
+            this._addScore(pts);
+            const label = b.type !== 'building' ? `${b.type.toUpperCase()}! +${pts}`
+              : mult > 1 ? `RAZED! COMBO x${mult}! +${pts}` : `RAZED! +${pts}`;
+            this.particles.addScorePopup(bm.x, bm.y, label, b.type !== 'building' ? 0xffff44 : 0xff9900);
+            if (b.type === 'fuel' || b.type === 'radar' || b.type === 'bunker') {
+              const pu = maybeSpawnPowerUp(b.x + b.baseW / 2, bm.y);
+              if (pu) this.powerUps.push(pu);
+            }
+            this.buildings.splice(bi, 1);
           } else {
-            this.particles.spawnExplosion(bm.x, bm.y, 1.6);
+            b.damaged = true;
+            b.layers.splice(layerIdx, 1);
+            const pts = (b.type === 'bunker' ? 150 : 80) * mult * doub;
+            this._addScore(pts);
+            this.particles.spawnExplosion(bm.x, bm.y, 1.0);
+            this.particles.addScorePopup(bm.x, bm.y, `+${pts}`, mult > 1 ? 0xffff44 : COL_LT_GREEN);
           }
-          this._addScore(pts);
-          const label = b.type !== 'building' ? `${b.type.toUpperCase()}! +${pts}`
-            : mult > 1 ? `RAZED! COMBO x${mult}! +${pts}` : `RAZED! +${pts}`;
-          this.particles.addScorePopup(bm.x, bm.y, label, b.type !== 'building' ? 0xffff44 : 0xff9900);
-          if (b.type === 'fuel' || b.type === 'radar' || b.type === 'bunker') {
-            const pu = maybeSpawnPowerUp(b.x + b.baseW / 2, bm.y);
-            if (pu) this.powerUps.push(pu);
-          }
-          this.buildings.splice(bi, 1);
-        } else {
-          b.damaged = true;
-          b.layers.splice(layerIdx, 1);
-          const pts = (b.type === 'bunker' ? 150 : 80) * mult * doub;
-          this._addScore(pts);
-          this.particles.spawnExplosion(bm.x, bm.y, 1.0);
-          this.particles.addScorePopup(bm.x, bm.y, `+${pts}`, mult > 1 ? 0xffff44 : COL_LT_GREEN);
+          this.audio.bombHit();
+          this.shakeMag = Math.max(this.shakeMag, 6);
+          alive = false;
+          break;
         }
-        this.audio.bombHit();
-        this.shakeMag = Math.max(this.shakeMag, 6);
-        return false;
       }
-      return true;
-    });
+
+      if (!alive) { this.bombPool.release(bm); } else { keep.push(bm); }
+    }
+
+    this.bombs = keep;
   }
 
   private _updatePowerUps(spd: number): void {
@@ -883,10 +907,13 @@ export class GameScene {
 
   private _startLevel(): void {
     this.finishLineX = W + LEVEL_DIST;
-    this.levelDone = false;
+    this.sceneState  = SceneState.Active;
     this.levelStartScore = this.score;
     this.comboCount = 0; this.comboTimer = 0;
     this.outOfBombsFlash = 0; this.outOfBombsTriggered = false;
+
+    // Return pooled bombs before clearing
+    for (const bm of this.bombs) this.bombPool.release(bm);
 
     // Always reset ALL entity arrays so nothing bleeds across level boundaries
     this.bombs = [];
@@ -924,12 +951,11 @@ export class GameScene {
   }
 
   private async _showTransition(level: number, isNext: boolean): Promise<void> {
-    this.gameRunning = false;
-    const earned = isNext ? this.score - this.levelStartScore : 0;
+    this.sceneState = SceneState.Transition;
+    const earned    = isNext ? this.score - this.levelStartScore : 0;
     this.audio.levelStart(level);
     await this.transition.show(level, isNext, earned);
-    this._startLevel();
-    this.gameRunning = true;
+    this._startLevel();       // sets sceneState = Active at its end
   }
 
   private _completeLevelOrEnd(): void {
@@ -953,7 +979,7 @@ export class GameScene {
   }
 
   private _endGame(): void {
-    this.gameRunning = false;
+    this.sceneState = SceneState.Over;
     this.hud.hide();
     this.audio.gameOver();
     this.onGameOver(this.score);

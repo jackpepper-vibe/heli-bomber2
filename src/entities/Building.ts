@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { GROUND_Y, COL_GREEN, COL_DK_GREEN, COL_LT_GREEN } from '../utils/constants';
+import { GROUND_Y, COL_BLDG_BODY, COL_BLDG_TRIM, COL_BLDG_GLOW } from '../utils/constants';
 import { blinkMs } from '../utils/math';
 
 export type BuildingType = 'building' | 'fuel' | 'radar' | 'bunker';
@@ -60,7 +60,7 @@ export function mkBuilding(startX: number): BuildingData {
     x: startX, baseW, type: 'building', layers,
     totalLayers: nLayers, hp: nLayers,
     maxHp: nLayers, damaged: false,
-    shade: COL_DK_GREEN, crackSeed: Math.random(),
+    shade: COL_BLDG_BODY, crackSeed: Math.random(),
     hasWaterTower: Math.random() < 0.3,
     hasAntenna: Math.random() < 0.5,
     hasNeon: Math.random() < 0.35,
@@ -165,11 +165,11 @@ export class BuildingRenderer {
       const r = rects[li];
       const lay = b.layers[li];
 
-      g.rect(r.x, r.y, r.w, r.h).fill(b.damaged ? 0x0a0a00 : b.shade).stroke({ width: 1, color: COL_GREEN });
+      g.rect(r.x, r.y, r.w, r.h).fill(b.damaged ? 0x0a0a12 : b.shade).stroke({ width: 1, color: COL_BLDG_TRIM });
 
       if (r.h > 14) {
         g.moveTo(r.x + 1, r.y + r.h * 0.45).lineTo(r.x + r.w - 1, r.y + r.h * 0.45)
-         .stroke({ width: 0.5, color: 0x003a10, alpha: 0.6 });
+         .stroke({ width: 0.5, color: 0x252540, alpha: 0.6 });
       }
 
       const wW = 5, wH = Math.min(6, r.h - 5);
@@ -203,19 +203,19 @@ export class BuildingRenderer {
         const rx = topR.x;
         if (b.hasWaterTower) {
           const tx = rx + topLay.w * 0.7;
-          g.ellipse(tx, topR.y - 10, 7, 5).fill(0x002800).stroke({ width: 1, color: 0x00aa28 });
+          g.ellipse(tx, topR.y - 10, 7, 5).fill(0x1a1e30).stroke({ width: 1, color: 0x3a4060 });
           g.moveTo(tx - 6, topR.y - 6).lineTo(tx - 4, topR.y)
            .moveTo(tx, topR.y - 5).lineTo(tx, topR.y)
            .moveTo(tx + 6, topR.y - 6).lineTo(tx + 4, topR.y)
-           .stroke({ width: 1, color: 0x00aa28 });
+           .stroke({ width: 1, color: 0x3a4060 });
         }
         if (b.hasAntenna) {
           const ah = 14 + Math.random() * 16 | 0;
-          g.moveTo(cx, topR.y).lineTo(cx, topR.y - ah).stroke({ width: 1, color: 0x00aa28 });
+          g.moveTo(cx, topR.y).lineTo(cx, topR.y - ah).stroke({ width: 1, color: 0x3a4060 });
           g.moveTo(cx - 5, topR.y - ah * 0.6).lineTo(cx + 5, topR.y - ah * 0.6)
            .moveTo(cx - 3, topR.y - ah * 0.8).lineTo(cx + 3, topR.y - ah * 0.8)
-           .stroke({ width: 1, color: 0x00aa28 });
-          if (blinkMs(600)) g.circle(cx, topR.y - ah, 2).fill({ color: 0xff2200, alpha: 0.75 });
+           .stroke({ width: 1, color: 0x3a4060 });
+          if (blinkMs(600)) g.circle(cx, topR.y - ah, 2).fill({ color: 0xff3300, alpha: 0.75 });
         }
       }
     }
@@ -226,13 +226,14 @@ export class BuildingRenderer {
       const ny = GROUND_Y - 12;
       const pulse = Math.sin(Date.now() * 0.004 + b.x);
       const na = 0.55 + 0.35 * pulse;
-      // Neon glow layers
-      g.rect(nx - 2, ny - 2, nw + 4, 11).fill({ color: COL_GREEN, alpha: na * 0.08 });
-      g.rect(nx,     ny,     nw,     7 ).fill({ color: COL_GREEN, alpha: na * 0.12 });
-      g.rect(nx,     ny,     nw,     7 ).stroke({ width: 2, color: COL_GREEN, alpha: na });
-      // Inner bright line
+      // Alternate neon colour per building (blue vs red based on x position)
+      const neonCol  = (Math.floor(b.x / 80) % 2 === 0) ? COL_BLDG_GLOW : 0x8833cc;
+      const neonBright = (Math.floor(b.x / 80) % 2 === 0) ? 0x8899ff : 0xcc88ff;
+      g.rect(nx - 2, ny - 2, nw + 4, 11).fill({ color: neonCol,  alpha: na * 0.10 });
+      g.rect(nx,     ny,     nw,     7 ).fill({ color: neonCol,  alpha: na * 0.14 });
+      g.rect(nx,     ny,     nw,     7 ).stroke({ width: 2, color: neonCol, alpha: na });
       g.moveTo(nx + 3, ny + 3).lineTo(nx + nw - 3, ny + 3)
-       .stroke({ width: 1, color: 0xaaffc0, alpha: na * 0.65 });
+       .stroke({ width: 1, color: neonBright, alpha: na * 0.6 });
     }
 
     if (b.damaged && rects.length > 0) {
@@ -253,19 +254,19 @@ export class BuildingRenderer {
     g.moveTo(tx + 8, GROUND_Y).lineTo(tx + 8, ty + th * 0.65)
      .moveTo(tx + tw - 8, GROUND_Y).lineTo(tx + tw - 8, ty + th * 0.65)
      .moveTo(cx, GROUND_Y).lineTo(cx, ty + th * 0.75)
-     .stroke({ width: 2.5, color: 0x00aa44 });
+     .stroke({ width: 2.5, color: 0x556688 });
 
-    // Tank body
-    g.roundRect(tx, ty, tw, th, 8).fill(b.damaged ? 0x150800 : 0x001e0a).stroke({ width: 1.5, color: 0x00cc44 });
+    // Tank body — olive-grey military
+    g.roundRect(tx, ty, tw, th, 8).fill(b.damaged ? 0x1a1208 : 0x2a3a2a).stroke({ width: 1.5, color: 0x4a6a4a });
 
     // Band lines
     g.moveTo(tx + 8, ty + th / 3).lineTo(tx + tw - 8, ty + th / 3)
      .moveTo(tx + 8, ty + th * 2 / 3).lineTo(tx + tw - 8, ty + th * 2 / 3)
-     .stroke({ width: 0.8, color: 0x00aa44, alpha: 0.55 });
+     .stroke({ width: 0.8, color: 0x4a6a4a, alpha: 0.55 });
 
     // Top dome
-    g.ellipse(cx, ty + 4, tw * 0.42, 9).fill(b.damaged ? 0x1a0a00 : 0x003a12)
-     .stroke({ width: 1, color: 0x00cc44 });
+    g.ellipse(cx, ty + 4, tw * 0.42, 9).fill(b.damaged ? 0x241808 : 0x3a5030)
+     .stroke({ width: 1, color: 0x4a6a4a });
 
     // FUEL label
     // (rendered via separate text layer in GameScene for proper font)
@@ -295,24 +296,24 @@ export class BuildingRenderer {
 
     // Base platform
     const base = rects[0];
-    g.rect(base.x, base.y, base.w, base.h).fill(b.damaged ? 0x0a0800 : 0x001800).stroke({ width: 1.5, color: 0x00cc44 });
+    g.rect(base.x, base.y, base.w, base.h).fill(b.damaged ? 0x0e0e18 : COL_BLDG_BODY).stroke({ width: 1.5, color: COL_BLDG_TRIM });
     g.moveTo(base.x + 4, base.y + base.h * 0.5).lineTo(base.x + base.w - 4, base.y + base.h * 0.5)
-     .stroke({ width: 0.8, color: 0x00aa44, alpha: 0.6 });
+     .stroke({ width: 0.8, color: COL_BLDG_TRIM, alpha: 0.6 });
 
     // Masts
     for (let i = 1; i < rects.length - 1; i++) {
       const m = rects[i];
-      g.rect(m.x, m.y, m.w, m.h).fill(0x002800).stroke({ width: 1, color: 0x00cc44 });
+      g.rect(m.x, m.y, m.w, m.h).fill(0x14182a).stroke({ width: 1, color: COL_BLDG_TRIM });
     }
 
-    // Dish (top element)
+    // Dish (top element) — glowing blue dish
     if (rects.length >= 4) {
       const d = rects[rects.length - 1];
       const dy = d.y + d.h / 2;
       g.moveTo(d.x, dy + 5).quadraticCurveTo(cx, dy - 14, d.x + d.w, dy + 5)
-       .fill(b.damaged ? 0x0a0a00 : 0x003a14).stroke({ width: 1.5, color: 0x00ff88 });
-      g.moveTo(cx, dy + 5).lineTo(cx, rects[rects.length - 2].y).stroke({ width: 1, color: 0x00cc44 });
-      if (blinkMs(400)) g.circle(cx, dy - 5, 2.5).fill({ color: 0x00ffaa, alpha: 0.9 });
+       .fill(b.damaged ? 0x0c0c18 : 0x1a2040).stroke({ width: 1.5, color: 0x5599ee });
+      g.moveTo(cx, dy + 5).lineTo(cx, rects[rects.length - 2].y).stroke({ width: 1, color: COL_BLDG_TRIM });
+      if (blinkMs(400)) g.circle(cx, dy - 5, 2.5).fill({ color: 0x66aaff, alpha: 0.9 });
     }
 
     if (b.damaged) this._drawDamage(g, b, cx, rects[rects.length - 1].y);
@@ -325,12 +326,12 @@ export class BuildingRenderer {
     for (let ri = 0; ri < rects.length; ri++) {
       const r = rects[ri];
       const isTop = ri === rects.length - 1;
-      g.rect(r.x, r.y, r.w, r.h).fill(b.damaged ? 0x0a0a05 : ri === 0 ? 0x001005 : 0x001a08)
-       .stroke({ width: 1.5, color: 0x00cc44 });
+      g.rect(r.x, r.y, r.w, r.h).fill(b.damaged ? 0x0e0e18 : ri === 0 ? 0x1a1e2e : 0x20243a)
+       .stroke({ width: 1.5, color: COL_BLDG_TRIM });
 
       if (r.h > 10) {
         g.moveTo(r.x + 2, r.y + r.h * 0.5).lineTo(r.x + r.w - 2, r.y + r.h * 0.5)
-         .stroke({ width: 0.8, color: 0x00aa44, alpha: 0.5 });
+         .stroke({ width: 0.8, color: COL_BLDG_TRIM, alpha: 0.5 });
       }
 
       // Battlements on top
@@ -342,7 +343,7 @@ export class BuildingRenderer {
         for (let i = 0; i < count; i++) {
           const mx = startX + i * (merlonW + gap);
           g.rect(mx, r.y - merlonH, merlonW, merlonH)
-           .fill(b.damaged ? 0x0a0a05 : 0x001a08).stroke({ width: 1, color: 0x00cc44 });
+           .fill(b.damaged ? 0x0e0e18 : 0x1a1e2e).stroke({ width: 1, color: COL_BLDG_TRIM });
         }
       }
 
@@ -365,7 +366,7 @@ export class BuildingRenderer {
     g.moveTo(bx + bw * (0.3 + seed * 0.2), topY)
      .lineTo(bx + bw * (0.5 + seed * 0.15), topY + 20)
      .lineTo(bx + bw * (0.4 + seed * 0.1), topY + 38)
-     .stroke({ width: 0.8, color: COL_LT_GREEN, alpha: 0.55 });
+     .stroke({ width: 0.8, color: 0x8888cc, alpha: 0.55 });
     const flicker = 0.4 + 0.6 * Math.random();
     g.circle(cx, topY - 4, 4 + Math.random() * 5).fill({ color: 0xff4400, alpha: flicker * 0.7 });
     g.circle(cx, topY - 6, 2 + Math.random() * 3).fill({ color: 0xffaa00, alpha: flicker * 0.7 });

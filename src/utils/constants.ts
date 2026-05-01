@@ -3,15 +3,45 @@ export const W = 920;
 export const H = 520;
 export const GROUND_Y = 478;
 
-// Palette
-export const COL_GREEN      = 0x00ff41;
-export const COL_DK_GREEN   = 0x001f00;
-export const COL_MID_GREEN  = 0x004a00;
-export const COL_LT_GREEN   = 0xaaffbb;
-export const COL_BLACK      = 0x000000;
+// ── Full colour palette ────────────────────────────────────────────────────────
+
+// Sky / environment
+export const COL_SKY_DEEP     = 0x03050e;   // near-black midnight
+export const COL_SKY_MID      = 0x0b1428;   // deep navy
+export const COL_SKY_HORIZON  = 0x182840;   // dark blue horizon
+
+// Ground
+export const COL_GROUND_DARK  = 0x070d04;   // almost-black earth
+export const COL_GROUND_MID   = 0x0e1a08;   // military dark green
+export const COL_GROUND_EDGE  = 0x2d4820;   // horizon edge highlight
+
+// Player helicopter — steel-blue military
+export const COL_HELI_BODY    = 0x1c2b3a;   // dark steel-grey fuselage
+export const COL_HELI_TRIM    = 0x3d6e9e;   // muted steel blue
+export const COL_HELI_GLOW    = 0x5a9acc;   // rotor / canopy glow
+export const COL_HELI_SHADOW  = 0x0c141e;   // deep shadow fill
+
+// Buildings — urban concrete
+export const COL_BLDG_BODY    = 0x191924;   // dark concrete
+export const COL_BLDG_TRIM    = 0x2e3048;   // cool grey outline
+export const COL_BLDG_GLOW    = 0x3a4070;   // neon accent blue
+
+// HUD / UI — keep CRT green for terminal feel
+export const COL_HUD          = 0x00ff41;
+export const COL_HUD_LT       = 0xaaffbb;
+
+// Legacy aliases used by HUD, ParticleSystem score popups and finish line
+export const COL_GREEN        = COL_HUD;
+export const COL_DK_GREEN     = 0x001f00;
+export const COL_MID_GREEN    = 0x004a00;
+export const COL_LT_GREEN     = COL_HUD_LT;
+export const COL_BLACK        = 0x000000;
 
 // Physics
-export const HELI_SPD   = 3.5;
+export const HELI_SPD     = 3.5;    // legacy scalar (unused after accel model)
+export const HELI_ACCEL   = 0.40;   // px/frame² per intent axis
+export const HELI_FRICTION = 0.83;  // velocity multiplied each frame
+export const HELI_MAX_SPD = 5.2;    // px/frame clamp
 export const BOMB_SPD   = 3.5;
 export const SCROLL_BASE = 1.4;  // px/frame at level 1
 export const LEVEL_DIST  = 5500; // scroll-pixels per level
