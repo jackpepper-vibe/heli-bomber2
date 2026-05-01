@@ -39,9 +39,9 @@ export const COL_BLACK        = 0x000000;
 
 // Physics
 export const HELI_SPD     = 3.5;    // legacy scalar (unused after accel model)
-export const HELI_ACCEL   = 0.40;   // px/frame² per intent axis
-export const HELI_FRICTION = 0.83;  // velocity multiplied each frame
-export const HELI_MAX_SPD = 5.2;    // px/frame clamp
+export const HELI_ACCEL   = 0.55;   // px/frame² per intent axis
+export const HELI_FRICTION = 0.88;  // velocity multiplied each frame (less sticky = better scroll feel)
+export const HELI_MAX_SPD = 6.0;    // px/frame clamp
 export const BOMB_SPD   = 3.5;
 export const SCROLL_BASE = 1.4;  // px/frame at level 1
 export const LEVEL_DIST  = 5500; // scroll-pixels per level
@@ -69,9 +69,9 @@ export interface HeliModel {
 }
 
 export const HELI_MODELS: readonly HeliModel[] = [
-  { id: 0, name: 'SCOUT',   desc: 'Fast · Light',         scale: 0.72, speedMult: 1.35, hitMult: 0.72 },
-  { id: 1, name: 'ASSAULT', desc: 'Balanced',              scale: 1.00, speedMult: 1.00, hitMult: 1.00 },
-  { id: 2, name: 'GUNSHIP', desc: 'Heavy · Dual-drop',     scale: 1.42, speedMult: 0.70, hitMult: 1.42 },
+  { id: 0, name: 'SCOUT',   desc: 'Fast · Light',         scale: 0.36, speedMult: 1.35, hitMult: 0.36 },
+  { id: 1, name: 'ASSAULT', desc: 'Balanced',              scale: 0.50, speedMult: 1.00, hitMult: 0.50 },
+  { id: 2, name: 'GUNSHIP', desc: 'Heavy · Dual-drop',     scale: 0.71, speedMult: 0.70, hitMult: 0.71 },
 ];
 
 // Building score values

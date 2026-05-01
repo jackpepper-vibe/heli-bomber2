@@ -3,7 +3,7 @@ import {
   W, H, GROUND_Y,
   HELI_MODELS, BOMBS_PER_LEVEL, TOTAL_LEVELS,
   COMBO_WINDOW, COL_LT_GREEN,
-  LEVEL_DIST, SCROLL_BASE,
+  LEVEL_DIST,
   OBS_W, OBS_SPD,
 } from '../utils/constants';
 import { decayShake } from '../utils/math';
@@ -242,10 +242,8 @@ export class GameScene {
       this.heli.x = pos.x; this.heli.y = pos.y;
     }
 
-    // World scroll speed
-    let spd = SCROLL_BASE + (this.currentLevel - 1) * 0.5;
-    if (intent.right) spd += 1.8;
-    if (intent.left)  spd = Math.max(0.4, spd - 1.2);
+    // World scroll speed — driven by player's rightward velocity only
+    const spd = Math.max(0, this.heli.vx);
 
     // Background
     this.bg.update(spd);
@@ -782,11 +780,12 @@ export class GameScene {
     const isSeaLevel  = lv === 9;
 
     // Background
+    const isDaytime = lv === 1;
     if (isSeaLevel) {
-      this.bg.draw(false, true);
+      this.bg.draw(false, true, false);
       this.bg.drawSea(this.waterPhase);
     } else {
-      this.bg.draw(isCityLevel, false);
+      this.bg.draw(isCityLevel, false, isDaytime);
     }
 
     // Finish line

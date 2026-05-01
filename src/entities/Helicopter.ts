@@ -57,118 +57,198 @@ export class Helicopter {
   private _drawModel(g: PIXI.Graphics, cx: number, cy: number, s: number, rotA: number): void {
     const now  = Date.now();
     const beat = Math.sin(now * 0.003);
+    const S = s * 2; // drawing uses doubled internal units at half scale
 
     // ── Downwash glow ──────────────────────────────────────────────────────────
-    g.ellipse(cx, cy + 28 * s, 42 * s, 14 * s).fill({ color: 0x2255aa, alpha: 0.05 + 0.02 * beat });
-    g.ellipse(cx, cy + 20 * s, 28 * s, 9  * s).fill({ color: 0x4488cc, alpha: 0.07 });
+    g.ellipse(cx, cy + 28 * S, 42 * S, 14 * S).fill({ color: 0x2255aa, alpha: 0.05 + 0.02 * beat });
+    g.ellipse(cx, cy + 20 * S, 28 * S, 9  * S).fill({ color: 0x4488cc, alpha: 0.07 });
 
     // ── Rotor disc glow ────────────────────────────────────────────────────────
-    g.circle(cx, cy - 22 * s, 70 * s).fill({ color: COL_HELI_TRIM, alpha: 0.04 });
-    g.circle(cx, cy - 22 * s, 58 * s).fill({ color: COL_HELI_TRIM, alpha: 0.06 });
-    g.circle(cx, cy - 22 * s, 46 * s).fill({ color: COL_HELI_GLOW, alpha: 0.05 });
+    g.circle(cx, cy - 22 * S, 72 * S).fill({ color: COL_HELI_TRIM, alpha: 0.03 });
+    g.circle(cx, cy - 22 * S, 60 * S).fill({ color: COL_HELI_TRIM, alpha: 0.055 });
+    g.circle(cx, cy - 22 * S, 48 * S).fill({ color: COL_HELI_GLOW, alpha: 0.045 });
 
-    // ── Rotor mast ─────────────────────────────────────────────────────────────
-    g.moveTo(cx, cy - 12 * s).lineTo(cx, cy - 22 * s)
-     .stroke({ width: 2.5 * s, color: COL_HELI_GLOW });
+    // ── Rotor mast + swashplate detail ─────────────────────────────────────────
+    g.moveTo(cx, cy - 12 * S).lineTo(cx, cy - 22 * S)
+     .stroke({ width: 2.5 * S, color: COL_HELI_GLOW });
+    // Swashplate ring
+    g.circle(cx, cy - 18 * S, 5 * S).fill(COL_HELI_SHADOW).stroke({ width: 1 * S, color: COL_HELI_TRIM });
+    // Pitch link rods (3 arms at 120°)
+    for (let i = 0; i < 3; i++) {
+      const a = rotA * 0.5 + (i * Math.PI * 2) / 3;
+      g.moveTo(cx, cy - 18 * S)
+       .lineTo(cx + Math.cos(a) * 8 * S, cy - 22 * S + Math.sin(a) * 3 * S)
+       .stroke({ width: 0.8 * S, color: 0x5a8ab8, alpha: 0.7 });
+    }
 
     // ── Rotor hub ──────────────────────────────────────────────────────────────
-    g.circle(cx, cy - 22 * s, 4 * s).fill(0xc8e8ff);
-    g.circle(cx, cy - 22 * s, 2.5 * s).fill(COL_HELI_GLOW);
+    g.circle(cx, cy - 22 * S, 5 * S).fill(0xd0e8ff);
+    g.circle(cx, cy - 22 * S, 3 * S).fill(COL_HELI_GLOW);
 
     // ── Main rotor blades (4 ghost layers for motion blur) ─────────────────────
     const rotorPulse = 0.7 + 0.25 * Math.sin(rotA * 8);
     for (let ghost = 3; ghost >= 0; ghost--) {
       const alpha  = ghost === 0 ? rotorPulse : 0.12 * (4 - ghost);
-      const width  = ghost === 0 ? 3.5 * s : 2 * s;
+      const width  = ghost === 0 ? 3.5 * S : 2 * S;
       const offset = Math.PI * 0.10 * ghost;
-      const bx1 = Math.cos(offset) * 60 * s, by1 = Math.sin(offset) * 60 * s;
-      const bx2 = Math.cos(offset + Math.PI * 0.5) * 60 * s, by2 = Math.sin(offset + Math.PI * 0.5) * 60 * s;
-      g.moveTo(cx - bx1, cy - 22 * s - by1).lineTo(cx + bx1, cy - 22 * s + by1)
+      const bx1 = Math.cos(offset) * 62 * S, by1 = Math.sin(offset) * 62 * S;
+      const bx2 = Math.cos(offset + Math.PI * 0.5) * 62 * S, by2 = Math.sin(offset + Math.PI * 0.5) * 62 * S;
+      g.moveTo(cx - bx1, cy - 22 * S - by1).lineTo(cx + bx1, cy - 22 * S + by1)
        .stroke({ width, color: ghost === 0 ? COL_HELI_GLOW : COL_HELI_TRIM, alpha });
-      g.moveTo(cx - bx2, cy - 22 * s - by2).lineTo(cx + bx2, cy - 22 * s + by2)
+      g.moveTo(cx - bx2, cy - 22 * S - by2).lineTo(cx + bx2, cy - 22 * S + by2)
        .stroke({ width: width * 0.8, color: COL_HELI_TRIM, alpha: alpha * 0.7 });
     }
 
+    // ── Horizontal stabiliser ──────────────────────────────────────────────────
+    g.poly([cx - 58 * S, cy - 4 * S, cx - 72 * S, cy - 14 * S,
+            cx - 68 * S, cy - 14 * S, cx - 54 * S, cy - 4 * S])
+     .fill(0x0e1824).stroke({ width: 0.8 * S, color: COL_HELI_TRIM });
+
     // ── Tail boom ──────────────────────────────────────────────────────────────
-    g.poly([cx - 38 * s, cy - 2 * s, cx - 76 * s, cy - 0.5 * s,
-            cx - 76 * s, cy + 5 * s,  cx - 38 * s, cy + 8 * s])
-     .fill(COL_HELI_SHADOW).stroke({ width: 1.2 * s, color: COL_HELI_TRIM });
+    g.poly([cx - 38 * S, cy - 2 * S, cx - 76 * S, cy - 0.5 * S,
+            cx - 76 * S, cy + 5 * S,  cx - 38 * S, cy + 8 * S])
+     .fill(COL_HELI_SHADOW).stroke({ width: 1.2 * S, color: COL_HELI_TRIM });
+    // Boom stringer lines
+    g.moveTo(cx - 42 * S, cy + 1 * S).lineTo(cx - 72 * S, cy + 1.5 * S)
+     .stroke({ width: 0.5 * S, color: 0x2a4a6a, alpha: 0.5 });
 
     // ── Vertical tail fin ──────────────────────────────────────────────────────
-    g.poly([cx - 76 * s, cy + 6 * s, cx - 76 * s, cy - 22 * s,
-            cx - 68 * s, cy - 22 * s, cx - 65 * s, cy + 3 * s])
-     .fill(0x0e1824).stroke({ width: 1 * s, color: COL_HELI_TRIM });
+    g.poly([cx - 76 * S, cy + 6 * S, cx - 76 * S, cy - 24 * S,
+            cx - 67 * S, cy - 24 * S, cx - 64 * S, cy + 3 * S])
+     .fill(0x0e1824).stroke({ width: 1 * S, color: COL_HELI_TRIM });
+    // Fin leading edge highlight
+    g.moveTo(cx - 76 * S, cy - 24 * S).lineTo(cx - 67 * S, cy - 24 * S)
+     .stroke({ width: 1.5 * S, color: COL_HELI_GLOW, alpha: 0.3 });
 
-    // ── Tail rotor hub ─────────────────────────────────────────────────────────
-    g.circle(cx - 76 * s, cy - 6 * s, 2.5 * s).fill(COL_HELI_GLOW);
+    // ── Tail rotor gearbox ─────────────────────────────────────────────────────
+    g.rect(cx - 78 * S, cy - 11 * S, 5 * S, 10 * S)
+     .fill(0x151f2a).stroke({ width: 0.8 * S, color: COL_HELI_TRIM });
+    g.circle(cx - 76 * S, cy - 6 * S, 3 * S).fill(COL_HELI_GLOW);
 
     // ── Tail rotor blades ──────────────────────────────────────────────────────
     for (let ghost = 2; ghost >= 0; ghost--) {
       const ga    = rotA * 1.8 - ghost * 0.28;
       const alpha = ghost === 0 ? 0.9 : 0.18;
-      const tx = cx - 76 * s, ty = cy - 6 * s;
+      const tx = cx - 76 * S, ty = cy - 6 * S;
       const c = Math.cos(ga), ss = Math.sin(ga);
-      const r = 13 * s;
+      const r = 14 * S;
       g.moveTo(tx - c * r, ty - ss * r).lineTo(tx + c * r, ty + ss * r)
-       .stroke({ width: 1.6 * s, color: COL_HELI_TRIM, alpha });
+       .stroke({ width: 1.8 * S, color: COL_HELI_TRIM, alpha });
       g.moveTo(tx - ss * r, ty + c * r).lineTo(tx + ss * r, ty - c * r)
-       .stroke({ width: 1.6 * s, color: COL_HELI_TRIM, alpha: alpha * 0.7 });
+       .stroke({ width: 1.8 * S, color: COL_HELI_TRIM, alpha: alpha * 0.7 });
     }
 
-    // ── Fuselage body ──────────────────────────────────────────────────────────
-    g.roundRect(cx - 38 * s, cy - 11 * s, 76 * s, 24 * s, 5 * s).fill(COL_HELI_SHADOW);
-    g.roundRect(cx - 38 * s, cy - 12 * s, 76 * s, 24 * s, 5 * s)
-     .fill(COL_HELI_BODY).stroke({ width: 1.5 * s, color: COL_HELI_TRIM });
-    // Highlight stripe
-    g.roundRect(cx - 36 * s, cy - 10 * s, 72 * s, 6 * s, 3 * s)
-     .fill({ color: COL_HELI_GLOW, alpha: 0.07 });
+    // ── Engine nacelle (top of fuselage) ──────────────────────────────────────
+    g.roundRect(cx - 10 * S, cy - 16 * S, 24 * S, 5 * S, 2 * S)
+     .fill(0x131e2c).stroke({ width: 0.8 * S, color: COL_HELI_TRIM });
+    // Intake mesh detail
+    g.rect(cx - 8 * S, cy - 15 * S, 4 * S, 3 * S).fill({ color: 0x000810, alpha: 0.8 });
+    g.rect(cx - 2 * S, cy - 15 * S, 4 * S, 3 * S).fill({ color: 0x000810, alpha: 0.8 });
+    g.rect(cx + 4 * S, cy - 15 * S, 4 * S, 3 * S).fill({ color: 0x000810, alpha: 0.8 });
 
-    // ── Panel lines ────────────────────────────────────────────────────────────
-    g.moveTo(cx - 18 * s, cy - 12 * s).lineTo(cx - 18 * s, cy + 12 * s)
-     .moveTo(cx + 10 * s, cy - 12 * s).lineTo(cx + 10 * s, cy + 12 * s)
-     .stroke({ width: 0.8 * s, color: 0x2a4a6a, alpha: 0.6 });
+    // ── Exhaust ports ─────────────────────────────────────────────────────────
+    g.circle(cx - 14 * S, cy - 9 * S, 2.5 * S).fill(0x0a0f18);
+    g.circle(cx - 14 * S, cy - 9 * S, 2 * S).fill({ color: 0xff6600, alpha: 0.3 + 0.2 * beat });
+    // Exhaust heat shimmer trail
+    g.ellipse(cx - 22 * S, cy - 9 * S, 8 * S, 3 * S)
+     .fill({ color: 0xff8800, alpha: 0.06 + 0.04 * beat });
+
+    // ── Fuselage body ──────────────────────────────────────────────────────────
+    g.roundRect(cx - 38 * S, cy - 11 * S, 76 * S, 24 * S, 5 * S).fill(COL_HELI_SHADOW);
+    g.roundRect(cx - 38 * S, cy - 12 * S, 76 * S, 24 * S, 5 * S)
+     .fill(COL_HELI_BODY).stroke({ width: 1.5 * S, color: COL_HELI_TRIM });
+    // Armour plate top edge
+    g.moveTo(cx - 36 * S, cy - 12 * S).lineTo(cx + 36 * S, cy - 12 * S)
+     .stroke({ width: 2 * S, color: 0x2a3e52, alpha: 0.6 });
+    // Highlight stripe
+    g.roundRect(cx - 36 * S, cy - 10 * S, 72 * S, 5 * S, 2 * S)
+     .fill({ color: COL_HELI_GLOW, alpha: 0.06 });
+
+    // ── Panel lines + rivets ──────────────────────────────────────────────────
+    g.moveTo(cx - 18 * S, cy - 12 * S).lineTo(cx - 18 * S, cy + 12 * S)
+     .moveTo(cx + 10 * S, cy - 12 * S).lineTo(cx + 10 * S, cy + 12 * S)
+     .moveTo(cx - 5 * S,  cy - 2 * S).lineTo(cx + 8 * S, cy - 2 * S)
+     .stroke({ width: 0.8 * S, color: 0x2a4a6a, alpha: 0.55 });
+    // Rivet dots
+    for (let rx = -32; rx < 34; rx += 12) {
+      g.circle(cx + rx * S, cy - 11 * S, 0.9 * S).fill({ color: 0x3a5a7a, alpha: 0.5 });
+    }
 
     // ── Cockpit nose ───────────────────────────────────────────────────────────
-    g.poly([cx + 38 * s, cy - 12 * s, cx + 66 * s, cy + 1 * s, cx + 38 * s, cy + 12 * s])
-     .fill(0x111d28).stroke({ width: 1.5 * s, color: COL_HELI_TRIM });
+    g.poly([cx + 38 * S, cy - 13 * S, cx + 68 * S, cy + 1 * S, cx + 38 * S, cy + 13 * S])
+     .fill(0x111d28).stroke({ width: 1.5 * S, color: COL_HELI_TRIM });
+    // Nose armour stripe
+    g.poly([cx + 38 * S, cy - 13 * S, cx + 56 * S, cy - 5 * S, cx + 38 * S, cy + 2 * S])
+     .fill({ color: 0x1c2e42, alpha: 0.4 });
+
+    // ── FLIR / sensor turret under nose ───────────────────────────────────────
+    g.circle(cx + 58 * S, cy + 8 * S, 4.5 * S)
+     .fill(0x080e18).stroke({ width: 1 * S, color: 0x3a5a7a });
+    g.circle(cx + 59 * S, cy + 7 * S, 2 * S).fill({ color: 0x44aaff, alpha: 0.85 });
+    g.circle(cx + 59 * S, cy + 7 * S, 3.5 * S).fill({ color: 0x2266cc, alpha: 0.15 });
 
     // ── Cockpit window (glowing) ───────────────────────────────────────────────
-    g.rect(cx + 40 * s, cy - 8 * s, 16 * s, 12 * s).fill({ color: 0x88ccff, alpha: 0.88 });
-    g.rect(cx + 39 * s, cy - 9 * s, 18 * s, 14 * s).fill({ color: COL_HELI_GLOW, alpha: 0.14 });
-    // Reflection
-    g.rect(cx + 41 * s, cy - 7 * s, 5 * s, 2.5 * s).fill({ color: 0xe8f4ff, alpha: 0.7 });
-    g.rect(cx + 42 * s, cy - 5 * s, 2 * s, 1.5 * s).fill({ color: 0xe8f4ff, alpha: 0.4 });
+    // Main glass pane
+    g.poly([cx + 40 * S, cy - 9 * S, cx + 56 * S, cy - 7 * S,
+            cx + 56 * S, cy + 5 * S, cx + 40 * S, cy + 5 * S])
+     .fill({ color: 0x4488bb, alpha: 0.80 });
+    // Frame
+    g.poly([cx + 39 * S, cy - 10 * S, cx + 57 * S, cy - 8 * S,
+            cx + 57 * S, cy + 6 * S, cx + 39 * S, cy + 6 * S])
+     .stroke({ width: 1.2 * S, color: COL_HELI_TRIM });
+    // Centre bar
+    g.moveTo(cx + 48 * S, cy - 9 * S).lineTo(cx + 49 * S, cy + 5 * S)
+     .stroke({ width: 0.8 * S, color: 0x1a3a5a });
+    // Glow bloom
+    g.rect(cx + 39 * S, cy - 9 * S, 18 * S, 15 * S).fill({ color: COL_HELI_GLOW, alpha: 0.10 });
+    // Reflections
+    g.rect(cx + 41 * S, cy - 8 * S, 5 * S, 2 * S).fill({ color: 0xe8f4ff, alpha: 0.65 });
+    g.rect(cx + 42 * S, cy - 5 * S, 2 * S, 1.5 * S).fill({ color: 0xe8f4ff, alpha: 0.35 });
 
-    // ── Weapon hardpoints ──────────────────────────────────────────────────────
-    if (s > 0.8) {
-      g.rect(cx - 12 * s, cy + 12 * s, 10 * s, 6 * s)
-       .fill(0x151f2a).stroke({ width: 0.8 * s, color: 0x3a6a9e });
-      g.rect(cx + 8 * s,  cy + 12 * s, 10 * s, 6 * s)
-       .fill(0x151f2a).stroke({ width: 0.8 * s, color: 0x3a6a9e });
-      g.moveTo(cx - 12 * s, cy + 15 * s).lineTo(cx - 20 * s, cy + 15 * s)
-       .moveTo(cx + 18 * s, cy + 15 * s).lineTo(cx + 26 * s, cy + 15 * s)
-       .stroke({ width: 1 * s, color: 0x4a8ab8 });
+    // ── Wing pylons with weapon pods ──────────────────────────────────────────
+    // Pylon struts
+    g.moveTo(cx - 8 * S, cy + 12 * S).lineTo(cx - 18 * S, cy + 20 * S)
+     .moveTo(cx + 12 * S, cy + 12 * S).lineTo(cx + 22 * S, cy + 20 * S)
+     .stroke({ width: 1.2 * S, color: 0x1e2e3e });
+    // Rocket pods
+    g.roundRect(cx - 26 * S, cy + 18 * S, 16 * S, 5 * S, 1.5 * S)
+     .fill(0x0e1820).stroke({ width: 0.8 * S, color: 0x3a5a7a });
+    g.roundRect(cx + 14 * S, cy + 18 * S, 16 * S, 5 * S, 1.5 * S)
+     .fill(0x0e1820).stroke({ width: 0.8 * S, color: 0x3a5a7a });
+    // Rocket tubes visible on pods
+    for (let i = 0; i < 3; i++) {
+      g.circle(cx + (-24 + i * 4) * S, cy + 20.5 * S, 1 * S).fill(0x001018);
+      g.circle(cx + (16 + i * 4) * S,  cy + 20.5 * S, 1 * S).fill(0x001018);
     }
 
     // ── Landing skids ──────────────────────────────────────────────────────────
-    g.moveTo(cx - 22 * s, cy + 12 * s).lineTo(cx - 24 * s, cy + 25 * s)
-     .moveTo(cx + 12 * s, cy + 12 * s).lineTo(cx + 14 * s, cy + 25 * s)
-     .moveTo(cx - 30 * s, cy + 25 * s).lineTo(cx + 22 * s, cy + 25 * s)
-     .stroke({ width: 1.5 * s, color: COL_HELI_TRIM });
+    g.moveTo(cx - 22 * S, cy + 12 * S).lineTo(cx - 24 * S, cy + 26 * S)
+     .moveTo(cx + 12 * S, cy + 12 * S).lineTo(cx + 14 * S, cy + 26 * S)
+     .stroke({ width: 1.8 * S, color: COL_HELI_TRIM });
+    // Skid cross-tube
+    g.moveTo(cx - 30 * S, cy + 26 * S).lineTo(cx + 22 * S, cy + 26 * S)
+     .stroke({ width: 1.8 * S, color: COL_HELI_TRIM });
+    // Skid toe caps
+    g.roundRect(cx - 32 * S, cy + 24.5 * S, 6 * S, 3 * S, 1 * S).fill(0x1a2a3a);
+    g.roundRect(cx + 22 * S, cy + 24.5 * S, 6 * S, 3 * S, 1 * S).fill(0x1a2a3a);
 
     // ── Navigation lights ──────────────────────────────────────────────────────
     const nf = Math.floor(now / 500) % 2 === 0;
     if (nf) {
-      g.circle(cx - 62 * s, cy + 1 * s, 2.5 * s).fill({ color: 0xff2200, alpha: 0.95 });
-      g.circle(cx - 62 * s, cy + 1 * s, 5   * s).fill({ color: 0xff2200, alpha: 0.18 });
+      g.circle(cx - 62 * S, cy + 1 * S, 2.5 * S).fill({ color: 0xff2200, alpha: 0.95 });
+      g.circle(cx - 62 * S, cy + 1 * S, 5   * S).fill({ color: 0xff2200, alpha: 0.18 });
     }
     if (Math.floor(now / 500 + 0.5) % 2 === 0) {
-      g.circle(cx + 38 * s, cy - 10 * s, 2 * s).fill({ color: 0x44ccff, alpha: 0.9 });
-      g.circle(cx + 38 * s, cy - 10 * s, 4 * s).fill({ color: 0x44ccff, alpha: 0.15 });
+      g.circle(cx + 40 * S, cy - 12 * S, 2 * S).fill({ color: 0x44ccff, alpha: 0.9 });
+      g.circle(cx + 40 * S, cy - 12 * S, 4 * S).fill({ color: 0x44ccff, alpha: 0.15 });
     }
+    // Anti-collision beacon (top of rotor mast)
     if (Math.floor(now / 150) % 8 === 0) {
-      g.circle(cx, cy - 30 * s, 2.5 * s).fill({ color: 0xffffff, alpha: 0.9 });
+      g.circle(cx, cy - 32 * S, 3 * S).fill({ color: 0xffffff, alpha: 0.9 });
+      g.circle(cx, cy - 32 * S, 6 * S).fill({ color: 0xffffff, alpha: 0.15 });
     }
+    // IR suppressor exhaust glow (always)
+    g.circle(cx - 14 * S, cy - 9 * S, 4 * S).fill({ color: 0xff4400, alpha: 0.04 + 0.02 * beat });
   }
 
   /** Draw onto an external canvas (used for heli-select preview) */

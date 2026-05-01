@@ -184,13 +184,87 @@ export class BackgroundSystem {
 
   // ── Draw ──────────────────────────────────────────────────────────────────────
 
-  draw(showGround: boolean, showSea = false): void {
-    this._drawStars();
-    this._drawMountains();
-    this._drawClouds();
-    this._drawBgCity();
-    if (showGround) { this._drawGround(); this._drawGroundDetails(); }
-    if (showSea)    this._drawSea();
+  draw(showGround: boolean, showSea = false, daytime = false): void {
+    if (daytime) {
+      this._drawDaySky();
+      this._drawSun();
+      this._drawDayClouds();
+      this._drawDayMountains();
+      if (showGround) { this._drawDayGround(); this._drawGroundDetails(true); }
+    } else {
+      this._drawStars();
+      this._drawMountains();
+      this._drawClouds();
+      this._drawBgCity();
+      if (showGround) { this._drawGround(); this._drawGroundDetails(false); }
+      if (showSea)    this._drawSea();
+    }
+  }
+
+  private _drawDaySky(): void {
+    const g = this.skyGfx;
+    g.clear();
+    const bands = [
+      { y: 0,           h: 80,             color: 0x1a72b8 },
+      { y: 80,          h: 80,             color: 0x2e90d0 },
+      { y: 160,         h: 80,             color: 0x4aaee0 },
+      { y: 240,         h: 80,             color: 0x6ac4ec },
+      { y: 320,         h: 80,             color: 0x8cd4f2 },
+      { y: 400,         h: GROUND_Y - 400, color: 0xaaddf6 },
+    ];
+    for (const b of bands) g.rect(0, b.y, W, b.h).fill(b.color);
+    g.rect(0, GROUND_Y - 50, W, 50).fill({ color: 0xc8eaf8, alpha: 0.35 });
+  }
+
+  private _drawSun(): void {
+    const g = this.starGfx;
+    g.clear();
+    const now = Date.now();
+    const sx = 700, sy = 72;
+    g.circle(sx, sy, 88).fill({ color: 0xfffbcc, alpha: 0.07 });
+    g.circle(sx, sy, 66).fill({ color: 0xfff5aa, alpha: 0.12 });
+    g.circle(sx, sy, 48).fill({ color: 0xffee66, alpha: 0.20 });
+    g.circle(sx, sy, 34).fill({ color: 0xfffacc, alpha: 0.90 });
+    g.circle(sx, sy, 26).fill({ color: 0xffffff, alpha: 0.80 });
+    for (let i = 0; i < 8; i++) {
+      const a  = (i / 8) * Math.PI * 2 + now * 0.00008;
+      const r1 = 38, r2 = 58 + 5 * Math.sin(now * 0.0018 + i);
+      g.moveTo(sx + Math.cos(a) * r1, sy + Math.sin(a) * r1)
+       .lineTo(sx + Math.cos(a) * r2, sy + Math.sin(a) * r2)
+       .stroke({ width: 2.5, color: 0xffee44, alpha: 0.28 });
+    }
+  }
+
+  private _drawDayClouds(): void {
+    const g = this.cloudGfx;
+    g.clear();
+    for (const cl of this.clouds) {
+      g.ellipse(cl.x,                cl.y,                cl.w * 0.5,  cl.h * 0.50).fill({ color: 0xf6f8ff, alpha: 0.88 });
+      g.ellipse(cl.x + cl.w * 0.22, cl.y - cl.h * 0.22, cl.w * 0.40, cl.h * 0.48).fill({ color: 0xffffff, alpha: 0.92 });
+      g.ellipse(cl.x - cl.w * 0.20, cl.y - cl.h * 0.16, cl.w * 0.36, cl.h * 0.44).fill({ color: 0xeef4ff, alpha: 0.80 });
+      g.ellipse(cl.x,                cl.y + cl.h * 0.20, cl.w * 0.44, cl.h * 0.22).fill({ color: 0xc8d8e8, alpha: 0.18 });
+    }
+  }
+
+  private _drawDayMountains(): void {
+    const g = this.mountainGfx;
+    g.clear();
+    this._drawMountainRange(g, 0.06, GROUND_Y - 20, 95, 0.0028, 1.42, 0x1a4e10, 0.92);
+    this._drawMountainRange(g, 0.06, GROUND_Y - 20, 95, 0.0028, 1.42, 0x2e7020, 0.32);
+    this._drawMountainRange(g, 0.14, GROUND_Y - 10, 68, 0.0048, 2.88, 0x225c16, 0.94);
+    this._drawMountainRange(g, 0.14, GROUND_Y - 10, 68, 0.0048, 2.88, 0x42882c, 0.22);
+  }
+
+  private _drawDayGround(): void {
+    const g = this.groundGfx;
+    g.clear();
+    g.rect(0, GROUND_Y,     W, H - GROUND_Y).fill(0x3e8420);
+    g.rect(0, GROUND_Y,     W, 8           ).fill(0x52a030);
+    for (let y = GROUND_Y + 16; y < H; y += 14) {
+      g.moveTo(0, y).lineTo(W, y).stroke({ width: 0.5, color: 0x2e6418, alpha: 0.35 });
+    }
+    g.moveTo(0, GROUND_Y).lineTo(W, GROUND_Y).stroke({ width: 2.0, color: 0x5ab832, alpha: 0.9 });
+    g.moveTo(0, GROUND_Y - 1).lineTo(W, GROUND_Y - 1).stroke({ width: 4, color: 0x80d840, alpha: 0.14 });
   }
 
   private _drawStars(): void {
@@ -348,7 +422,7 @@ export class BackgroundSystem {
 
   drawSea(waterPhase: number): void { this._drawSea(waterPhase); }
 
-  private _drawGroundDetails(): void {
+  private _drawGroundDetails(daytime = false): void {
     const g = this.detailGfx;
     g.clear();
     const now = Date.now();
@@ -357,31 +431,34 @@ export class BackgroundSystem {
       const bx = d.x, by = GROUND_Y;
       if (d.type === 'tree') {
         g.moveTo(bx, by).lineTo(bx, by - d.h * 0.4)
-         .stroke({ width: 2, color: 0x10200a });
+         .stroke({ width: 2, color: daytime ? 0x3a2010 : 0x10200a });
         for (let i = 0; i < 3; i++) {
           const ty = by - d.h * 0.32 - i * d.h * 0.22;
           const tw = d.h * 0.44 - i * 4;
-          const tc = i === 0 ? 0x0a180a : i === 1 ? 0x182e10 : 0x244a18;
+          const tc = daytime
+            ? [0x2e7018, 0x3e9024, 0x50b030][i]
+            : [0x0a180a, 0x182e10, 0x244a18][i];
           g.poly([bx - tw, ty, bx, ty - d.h * 0.28, bx + tw, ty])
-           .fill(tc).stroke({ width: 0.8, color: 0x2a5020, alpha: 0.5 });
+           .fill(tc).stroke({ width: 0.8, color: daytime ? 0x4ab030 : 0x2a5020, alpha: 0.5 });
         }
       } else if (d.type === 'lamp') {
         g.moveTo(bx, by).lineTo(bx, by - d.h)
          .moveTo(bx, by - d.h).lineTo(bx + 10, by - d.h + 5)
-         .stroke({ width: 1.5, color: 0x1a2a18 });
-        const la = 0.6 + 0.3 * Math.sin(now * 0.0018 + bx * 0.13);
-        g.circle(bx + 10, by - d.h + 5, 4).fill({ color: 0xffee88, alpha: la * 0.85 });
-        g.circle(bx + 10, by - d.h + 5, 9).fill({ color: 0xffcc44, alpha: la * 0.12 });
-        g.circle(bx + 10, by - d.h + 5, 18).fill({ color: 0xffcc44, alpha: la * 0.05 });
+         .stroke({ width: 1.5, color: daytime ? 0x4a5840 : 0x1a2a18 });
+        const la = daytime ? 0.0 : 0.6 + 0.3 * Math.sin(now * 0.0018 + bx * 0.13);
+        if (!daytime) {
+          g.circle(bx + 10, by - d.h + 5, 4).fill({ color: 0xffee88, alpha: la * 0.85 });
+          g.circle(bx + 10, by - d.h + 5, 9).fill({ color: 0xffcc44, alpha: la * 0.12 });
+        }
       } else {
         g.moveTo(bx, by).lineTo(bx, by - d.h)
-         .stroke({ width: 1, color: 0x14221a });
+         .stroke({ width: 1, color: daytime ? 0x566048 : 0x14221a });
         for (let t = 0.3; t < 1; t += 0.22) {
           const bar = d.h * 0.18 * (1 - t * 0.5);
           g.moveTo(bx - bar, by - d.h * t).lineTo(bx + bar, by - d.h * t)
-           .stroke({ width: 1, color: 0x14221a });
+           .stroke({ width: 1, color: daytime ? 0x566048 : 0x14221a });
         }
-        if (blinkMs(700)) {
+        if (!daytime && blinkMs(700)) {
           g.circle(bx, by - d.h, 2.5).fill({ color: 0xff3300, alpha: 0.9 });
           g.circle(bx, by - d.h, 6).fill({ color: 0xff2200, alpha: 0.2 });
         }
