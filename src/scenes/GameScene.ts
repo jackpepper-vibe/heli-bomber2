@@ -36,6 +36,15 @@ import { BackgroundSystem }  from '../systems/BackgroundSystem';
 import { CaveSystem }        from '../systems/CaveSystem';
 import { StormSystem }       from '../systems/StormSystem';
 
+// ── Patrol plane (Level 1) ─────────────────────────────────────────────────────
+interface PatrolPlane {
+  worldX: number;
+  y: number;
+}
+
+const PATROL_PLANE_WORLD_SPD = 2.0; // px/frame in world coordinates
+const PATROL_SPAWN_INTERVAL  = 220; // frames between spawns
+
 // ── Obstacle (Level 2) ─────────────────────────────────────────────────────────
 interface ObstacleData {
   x: number;
@@ -86,6 +95,13 @@ export class GameScene {
 
   private finishLineX = W + LEVEL_DIST;
   private levelCountdown = 0; // frames remaining for timed levels (level 1)
+  private worldScrollX = 0;   // accumulated world scroll (used for plane screen positioning)
+  private engineAirborne = false;
+
+  // Level 1: patrol planes
+  private patrolPlanes: PatrolPlane[] = [];
+  private planeSpawnTimer = 120;
+  private readonly planeGfx: PIXI.Graphics;
   private bombsLeft = 0;
   private outOfBombsTriggered = false;
   private outOfBombsFlash = 0;
@@ -160,6 +176,7 @@ export class GameScene {
     this.balloonRenderer = new BalloonRenderer();
     this.mineRenderer    = new MineRenderer();
     this.shipRenderer    = new ShipRenderer();
+    this.planeGfx        = new PIXI.Graphics();
 
     this.overlayText = new PIXI.Text({
       text: '',
@@ -175,6 +192,7 @@ export class GameScene {
       this.buildingRenderer.container,
       this.shipRenderer.container,
       this.mineRenderer.container,
+      this.planeGfx,
       this.missileRenderer.container,
       this.enemyHeliRenderer.container,
       this.balloonRenderer.container,
@@ -199,7 +217,9 @@ export class GameScene {
     this.fanfareFlash = 0;
     this.waterPhase = 0;
 
-    this.heli.x = 210; this.heli.y = 230;
+    this.heli.x = 210; this.heli.y = GROUND_Y - 22;
+    this.heli.vx = 0; this.heli.vy = 0;
+    this.engineAirborne = false;
     this.input.clearAll();
 
     this.bg.init();
@@ -231,6 +251,16 @@ export class GameScene {
     this.heli.applyIntent(intent, dt);
     this.heli.update(dt);
 
+    // Engine sound: start when airborne, stop when grounded/landed
+    const isAirborne = this.heli.y < GROUND_Y - 40;
+    if (isAirborne && !this.engineAirborne) {
+      this.engineAirborne = true;
+      this.audio.startEngineLoop();
+    } else if (!isAirborne && this.engineAirborne) {
+      this.engineAirborne = false;
+      this.audio.stopEngineLoop();
+    }
+
     // Cave-specific constraint
     if (this.currentLevel === 5) {
       const { ceil, floor } = this.cave.getProfile(this.heli.x);
@@ -245,6 +275,7 @@ export class GameScene {
 
     // World scroll speed — driven by player's rightward velocity only
     const spd = Math.max(0, this.heli.vx);
+    this.worldScrollX += spd;
 
     // Background
     this.bg.update(spd);
@@ -305,6 +336,10 @@ export class GameScene {
   destroy(): void {
     this.sceneState = SceneState.Over;
     this.hud.hide();
+    if (this.engineAirborne) {
+      this.engineAirborne = false;
+      this.audio.stopEngineLoop();
+    }
   }
 
   // ── Fire ──────────────────────────────────────────────────────────────────────
@@ -323,6 +358,7 @@ export class GameScene {
 
   private _dropBomb(): void {
     if (this.bombsLeft <= 0) return;
+    if (!this.engineAirborne) return; // can't drop bombs while grounded
     const s = this.heli.model.scale;
     const b1 = this.bombPool.acquire();
     b1.reset(this.heli.x + 6, this.heli.y + 13 * s);
@@ -359,6 +395,7 @@ export class GameScene {
     }
 
     switch (lv) {
+      case 1: this._updatePatrolPlanes(); break;
       case 2: this._updateObstacles(spd); break;
       case 3: this._updateMissiles3(); break;
       case 4: this._updateBalloons(spd); this._updateFwdMissiles4(); break;
@@ -368,6 +405,40 @@ export class GameScene {
       case 8: this._updateMines(spd); break;
       case 9: this._updateSea(spd); break;
     }
+  }
+
+  // Level 1: Patrol planes approach from behind — incentive to keep moving right
+  private _updatePatrolPlanes(): void {
+    if (--this.planeSpawnTimer <= 0) {
+      this.planeSpawnTimer = PATROL_SPAWN_INTERVAL + Math.floor(Math.random() * 80);
+      this.patrolPlanes.push({
+        worldX: this.worldScrollX - 80,
+        y: 60 + Math.random() * (GROUND_Y - 130),
+      });
+    }
+
+    const hm = this.heli.model.hitMult;
+    this.patrolPlanes = this.patrolPlanes.filter(p => {
+      p.worldX += PATROL_PLANE_WORLD_SPD;
+      const sx = p.worldX - this.worldScrollX;
+      if (sx > W + 80) return false;
+
+      const dx = Math.abs(sx - this.heli.x);
+      const dy = Math.abs(p.y - this.heli.y);
+      if (dx < 34 * hm && dy < 16 * hm) {
+        if (this.powers.shield > 0) {
+          this.powers.shield = Math.max(0, this.powers.shield - 60 * 3);
+          this.particles.spawnSparks(this.heli.x, this.heli.y);
+        } else {
+          this._addScore(-150);
+          this.particles.spawnSparks(sx, p.y, 18, true);
+          this.audio.heliHit();
+          this.shakeMag = Math.max(this.shakeMag, 5);
+        }
+        return false;
+      }
+      return true;
+    });
   }
 
   // Level 2: Piston barriers — single pillar from top or bottom, oscillates in/out
@@ -815,6 +886,9 @@ export class GameScene {
     // Mines — always call so g.clear() runs
     this.mineRenderer.draw(lv === 8 ? this.mines : []);
 
+    // Patrol planes (level 1)
+    this._drawPatrolPlanes();
+
     // Obstacles (level 2) — drawn inline in gfx
     this._drawObstacles();
 
@@ -857,6 +931,49 @@ export class GameScene {
 
     // Fanfare / out-of-bombs overlays handled via uiContainer text
     this._drawOverlays();
+  }
+
+  private _drawPatrolPlanes(): void {
+    const g = this.planeGfx;
+    g.clear();
+    if (this.currentLevel !== 1) return;
+
+    const now = Date.now();
+    for (const p of this.patrolPlanes) {
+      const sx = p.worldX - this.worldScrollX;
+      if (sx < -100 || sx > W + 100) continue;
+      const cy = p.y;
+
+      // Engine glow trail (behind plane)
+      g.ellipse(sx - 38, cy, 22, 5).fill({ color: 0xff6600, alpha: 0.18 });
+      g.ellipse(sx - 28, cy, 12, 3).fill({ color: 0xff9900, alpha: 0.28 });
+
+      // Wings (swept back delta shape)
+      g.poly([sx + 12, cy, sx - 20, cy - 18, sx - 28, cy - 2,
+              sx - 14, cy + 2, sx - 28, cy + 2, sx - 20, cy + 18, sx + 12, cy])
+       .fill(0x2a3020).stroke({ width: 1, color: 0x4a6040 });
+
+      // Fuselage — narrow dart shape
+      g.poly([sx + 32, cy, sx + 20, cy - 4, sx - 24, cy - 3,
+              sx - 30, cy,  sx - 24, cy + 3, sx + 20, cy + 4])
+       .fill(0x3a4828).stroke({ width: 1, color: 0x5a7040 });
+
+      // Cockpit canopy
+      g.poly([sx + 22, cy - 1, sx + 10, cy - 5, sx + 4, cy - 4, sx + 12, cy - 1])
+       .fill({ color: 0x88aacc, alpha: 0.75 });
+
+      // Engine exhausts (twin)
+      const flicker = 0.6 + 0.3 * Math.sin(now * 0.04 + p.worldX);
+      g.circle(sx - 26, cy - 4, 3).fill({ color: 0xff4400, alpha: flicker });
+      g.circle(sx - 26, cy + 4, 3).fill({ color: 0xff4400, alpha: flicker * 0.8 });
+
+      // Warning glow when close to player
+      const dist = Math.abs(sx - this.heli.x);
+      if (dist < 120) {
+        const wa = (1 - dist / 120) * 0.18;
+        g.circle(sx, cy, 44).fill({ color: 0xff2200, alpha: wa });
+      }
+    }
   }
 
   private _drawObstacles(): void {
@@ -920,6 +1037,9 @@ export class GameScene {
   private _startLevel(): void {
     this.finishLineX    = W + LEVEL_DIST;
     this.levelCountdown = 25 * 60; // 25 seconds at 60 fps (level 1 only)
+    this.worldScrollX   = 0;
+    this.patrolPlanes   = [];
+    this.planeSpawnTimer = 120;
     this.sceneState     = SceneState.Active;
     this.levelStartScore = this.score;
     this.comboCount = 0; this.comboTimer = 0;

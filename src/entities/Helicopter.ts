@@ -44,7 +44,7 @@ export class Helicopter {
     this.vx = clamp(this.vx, -maxSpd, maxSpd);
     this.vy = clamp(this.vy, -maxSpd, maxSpd);
     this.x = clamp(this.x + this.vx * dt, 45, W - 45);
-    this.y = clamp(this.y + this.vy * dt, 36, GROUND_Y - 30);
+    this.y = clamp(this.y + this.vy * dt, 36, GROUND_Y - 22);
     this.rotorA += 0.27 * dt;
   }
 

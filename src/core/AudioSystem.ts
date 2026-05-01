@@ -21,6 +21,10 @@ export class AudioSystem {
   private ctx: AudioContext | null = null;
   private unlocked = false;
 
+  private engineRunning = false;
+  private engineGain: GainNode | null = null;
+  private engineSources: Array<AudioBufferSourceNode | OscillatorNode> = [];
+
   constructor() {
     const events: string[] = ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'];
     const unlock = () => this._unlock();
@@ -193,6 +197,90 @@ export class AudioSystem {
       this.playTone({ freq: 880, type: 'sine', gain: 0.18, dur: 0.7, attack: 0.08, decay: 0.3, freqEnd: 1100 });
       this.playNoise({ gain: 0.12, dur: 0.5, filterFreq: 3500, attack: 0.06 });
     }, 1850);
+  }
+
+  startEngineLoop(): void {
+    if (this.engineRunning) return;
+    const ac = this.ac;
+    if (!ac) return;
+    this.engineRunning = true;
+
+    const now = ac.currentTime;
+    const master = ac.createGain();
+    master.gain.setValueAtTime(0, now);
+    master.gain.linearRampToValueAtTime(1.0, now + 1.8);
+    master.connect(ac.destination);
+    this.engineGain = master;
+
+    // Looping noise buffer for rotor wash
+    const bufLen = ac.sampleRate * 2;
+    const rotorBuf = ac.createBuffer(1, bufLen, ac.sampleRate);
+    const data = rotorBuf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ac.createBufferSource();
+    noise.buffer = rotorBuf;
+    noise.loop = true;
+    const lpf = ac.createBiquadFilter();
+    lpf.type = 'lowpass';
+    lpf.frequency.value = 280;
+    lpf.Q.value = 0.7;
+    const noiseGain = ac.createGain();
+    noiseGain.gain.value = 0.18;
+    // LFO for blade-chop modulation (~12 Hz)
+    const lfo = ac.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 12;
+    const lfoDepth = ac.createGain();
+    lfoDepth.gain.value = 0.10;
+    lfo.connect(lfoDepth);
+    lfoDepth.connect(noiseGain.gain);
+    noise.connect(lpf);
+    lpf.connect(noiseGain);
+    noiseGain.connect(master);
+
+    // Turbine low hum
+    const turbine = ac.createOscillator();
+    turbine.type = 'sawtooth';
+    turbine.frequency.value = 48;
+    const turbGain = ac.createGain();
+    turbGain.gain.value = 0.055;
+    turbine.connect(turbGain);
+    turbGain.connect(master);
+
+    // Second harmonic body
+    const harm = ac.createOscillator();
+    harm.type = 'triangle';
+    harm.frequency.value = 96;
+    const harmGain = ac.createGain();
+    harmGain.gain.value = 0.028;
+    harm.connect(harmGain);
+    harmGain.connect(master);
+
+    noise.start(now);
+    lfo.start(now);
+    turbine.start(now);
+    harm.start(now);
+    this.engineSources = [noise, lfo, turbine, harm];
+  }
+
+  stopEngineLoop(): void {
+    if (!this.engineRunning) return;
+    this.engineRunning = false;
+    const ac = this.ac;
+    const g = this.engineGain;
+    if (!ac || !g) return;
+
+    const now = ac.currentTime;
+    g.gain.setValueAtTime(g.gain.value, now);
+    g.gain.linearRampToValueAtTime(0.0001, now + 0.7);
+
+    const sources = this.engineSources;
+    this.engineSources = [];
+    this.engineGain = null;
+    setTimeout(() => {
+      for (const n of sources) { try { n.stop(); } catch { /* already stopped */ } }
+      try { g.disconnect(); } catch { /* already disconnected */ }
+    }, 800);
   }
 
   levelStart(level: number): void {
