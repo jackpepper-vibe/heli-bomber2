@@ -405,42 +405,54 @@ export class BackgroundSystem {
     const g = this.hillGfx;
     g.clear();
 
-    // Far hills — lighter sage green, slower scroll
+    // Farthest hills — hazy sage, very slow scroll
+    const off0 = this.bgScrollX * 0.10;
+    const pts0: number[] = [0, GROUND_Y];
+    for (let sx = 0; sx <= W; sx += 4) {
+      const h = 48 * Math.sin((sx + off0) * 0.0055 + 0.2)
+              + 20 * Math.sin((sx + off0) * 0.0130 + 1.8)
+              +  9 * Math.sin((sx + off0) * 0.0030 + 3.7);
+      pts0.push(sx, GROUND_Y - 62 - Math.max(0, h));
+    }
+    pts0.push(W, GROUND_Y);
+    g.poly(pts0).fill({ color: 0x7abf48, alpha: 0.52 });
+
+    // Mid hills — vibrant green, medium scroll
     const off1 = this.bgScrollX * 0.18;
     const pts1: number[] = [0, GROUND_Y];
     for (let sx = 0; sx <= W; sx += 4) {
-      const h = 30 * Math.sin((sx + off1) * 0.0080 + 0.5)
-              + 14 * Math.sin((sx + off1) * 0.0162 + 1.2)
-              +  7 * Math.sin((sx + off1) * 0.0038 + 2.1);
-      pts1.push(sx, GROUND_Y - 26 - Math.max(0, h));
+      const h = 56 * Math.sin((sx + off1) * 0.0068 + 0.5)
+              + 22 * Math.sin((sx + off1) * 0.0150 + 1.2)
+              + 10 * Math.sin((sx + off1) * 0.0038 + 2.1);
+      pts1.push(sx, GROUND_Y - 44 - Math.max(0, h));
     }
     pts1.push(W, GROUND_Y);
-    g.poly(pts1).fill({ color: 0x5aaa30, alpha: 0.72 });
+    g.poly(pts1).fill({ color: 0x62b82e, alpha: 0.80 });
 
-    // Near hills — richer green, faster scroll
+    // Near hills — richest green, faster scroll
     const off2 = this.bgScrollX * 0.30;
     const pts2: number[] = [0, GROUND_Y];
     for (let sx = 0; sx <= W; sx += 4) {
-      const h = 22 * Math.sin((sx + off2) * 0.0096 + 1.8)
-              + 10 * Math.sin((sx + off2) * 0.0208 + 0.7)
-              +  5 * Math.sin((sx + off2) * 0.0051 + 3.4);
-      pts2.push(sx, GROUND_Y - 14 - Math.max(0, h));
+      const h = 40 * Math.sin((sx + off2) * 0.0088 + 1.8)
+              + 16 * Math.sin((sx + off2) * 0.0200 + 0.7)
+              +  7 * Math.sin((sx + off2) * 0.0051 + 3.4);
+      pts2.push(sx, GROUND_Y - 28 - Math.max(0, h));
     }
     pts2.push(W, GROUND_Y);
-    g.poly(pts2).fill({ color: 0x3e8818, alpha: 0.88 });
+    g.poly(pts2).fill({ color: 0x4aaa1e, alpha: 0.94 });
 
-    // Ridge highlight on near hills
+    // Sunlit ridge crest highlight
     const ridgePts: number[] = [];
     for (let sx = 0; sx <= W; sx += 4) {
-      const h = 22 * Math.sin((sx + off2) * 0.0096 + 1.8)
-              + 10 * Math.sin((sx + off2) * 0.0208 + 0.7)
-              +  5 * Math.sin((sx + off2) * 0.0051 + 3.4);
-      ridgePts.push(sx, GROUND_Y - 14 - Math.max(0, h));
+      const h = 40 * Math.sin((sx + off2) * 0.0088 + 1.8)
+              + 16 * Math.sin((sx + off2) * 0.0200 + 0.7)
+              +  7 * Math.sin((sx + off2) * 0.0051 + 3.4);
+      ridgePts.push(sx, GROUND_Y - 28 - Math.max(0, h));
     }
     if (ridgePts.length >= 4) {
       g.moveTo(ridgePts[0], ridgePts[1]);
       for (let i = 2; i < ridgePts.length; i += 2) g.lineTo(ridgePts[i], ridgePts[i + 1]);
-      g.stroke({ width: 1.5, color: 0x70cc40, alpha: 0.55 });
+      g.stroke({ width: 2, color: 0x88e040, alpha: 0.60 });
     }
   }
 
@@ -577,16 +589,23 @@ export class BackgroundSystem {
   private _drawDayGround(): void {
     const g = this.groundGfx;
     g.clear();
-    // Rich golden-green meadow
-    g.rect(0, GROUND_Y,     W, H - GROUND_Y).fill(0x3c8018);
-    // Bright top strip lit by afternoon sun
-    g.rect(0, GROUND_Y,     W, 10).fill(0x56a828);
-    // Subtle darker mid-ground band for depth
-    g.rect(0, GROUND_Y + 10, W, H - GROUND_Y - 10).fill({ color: 0x2a6010, alpha: 0.35 });
-    // Edge horizon glow from warm sun
+    // Lush meadow base
+    g.rect(0, GROUND_Y, W, H - GROUND_Y).fill(0x2a8010);
+    // Bright sunlit top band
+    g.rect(0, GROUND_Y, W, 12).fill(0x50bc28);
+    // Second band — mid tone
+    g.rect(0, GROUND_Y + 12, W, 14).fill({ color: 0x3a9818, alpha: 0.80 });
+    // Deeper shadow toward bottom
+    g.rect(0, GROUND_Y + 26, W, H - GROUND_Y - 26).fill({ color: 0x1a5808, alpha: 0.40 });
+    // Grass fringe — irregular tufts along horizon
+    for (let sx = 0; sx < W; sx += 6) {
+      const fh = 4 + 5 * Math.abs(Math.sin(sx * 0.13 + 1.1));
+      const fc = (sx % 18 < 9) ? 0x60d030 : 0x4ab820;
+      g.rect(sx, GROUND_Y - fh + 1, 4, fh).fill({ color: fc, alpha: 0.70 });
+    }
+    // Crisp horizon line
     g.moveTo(0, GROUND_Y).lineTo(W, GROUND_Y)
-     .stroke({ width: 2.5, color: 0x78cc38, alpha: 0.85 });
-    g.rect(0, GROUND_Y - 8, W, 8).fill({ color: 0xd0c060, alpha: 0.08 });
+     .stroke({ width: 2, color: 0x70d840, alpha: 0.90 });
   }
 
   private _drawStars(): void {
