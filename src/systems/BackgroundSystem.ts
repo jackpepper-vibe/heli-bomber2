@@ -11,8 +11,8 @@ interface Star         { x: number; y: number; r: number; phase: number; layer: 
 interface Cloud        { x: number; y: number; w: number; h: number; alpha: number; speed: number; }
 interface BgBuilding   { x: number; w: number; h: number; style: 0|1|2|3; seed: number; wins: Array<{ rx: number; ry: number; lit: boolean; warmth: number }>; rooftop: Array<{ type: 'ac'|'tank'|'antenna'|'hvac'; rx: number; rh: number }>; }
 interface GroundDetail { x: number; type: 'tree' | 'lamp' | 'antenna'; h: number; }
-interface DayBird      { x: number; y: number; phase: number; speed: number; }
-interface PowerPole    { x: number; h: number; }
+interface BirdFlock    { cx: number; cy: number; speed: number; phase: number; count: number; spread: number; scale: number; alpha: number; formation: 0|1|2|3; seed: number; }
+interface PowerPole    { x: number; h: number; seed: number; hasTx: boolean; }
 
 const STAR_COLORS = [0xffffff, 0xffffff, 0xe8eeff, 0xfff8e0, 0xddeeff];
 
@@ -42,7 +42,7 @@ export class BackgroundSystem {
   private clouds:        Cloud[]        = [];
   private bgCity:        BgBuilding[]   = [];
   private groundDetails: GroundDetail[] = [];
-  private dayBirds:      DayBird[]      = [];
+  private birdFlocks:    BirdFlock[]    = [];
   private powerPoles:    PowerPole[]    = [];
   private bgScrollX = 0;
 
@@ -89,7 +89,7 @@ export class BackgroundSystem {
     this._initClouds();
     this._initBgCity();
     this._seedGroundDetails();
-    this._initDayBirds();
+    this._initBirdFlocks();
     this._initPowerPoles();
     this._drawStaticSky();
     this._drawMoon();
@@ -97,20 +97,37 @@ export class BackgroundSystem {
 
   // ── Seed helpers ──────────────────────────────────────────────────────────────
 
-  private _initDayBirds(): void {
-    this.dayBirds = [];
-    for (let i = 0; i < 24; i++) {
-      this.dayBirds.push({
-        x: Math.random() * W, y: 35 + Math.random() * 210,
-        phase: Math.random() * Math.PI * 2, speed: 0.15 + Math.random() * 0.50,
+  private _initBirdFlocks(): void {
+    this.birdFlocks = [];
+    // 7 distinct flocks with unique character — varied altitude, count, formation, scale
+    const defs: Array<{ count: number; formation: 0|1|2|3; spread: number; scale: number; alpha: number; yBand: [number, number]; speed: number }> = [
+      { count: 7, formation: 0, spread: 18, scale: 1.00, alpha: 0.56, yBand: [38,  95], speed: 0.44 },
+      { count: 5, formation: 1, spread: 22, scale: 0.80, alpha: 0.46, yBand: [80, 150], speed: 0.30 },
+      { count: 9, formation: 2, spread: 26, scale: 0.70, alpha: 0.50, yBand: [52, 108], speed: 0.53 },
+      { count: 4, formation: 3, spread: 30, scale: 1.20, alpha: 0.60, yBand: [28,  72], speed: 0.37 },
+      { count: 6, formation: 0, spread: 16, scale: 0.90, alpha: 0.48, yBand: [115, 185], speed: 0.24 },
+      { count: 8, formation: 2, spread: 24, scale: 0.72, alpha: 0.42, yBand: [62, 128], speed: 0.61 },
+      { count: 3, formation: 1, spread: 14, scale: 1.10, alpha: 0.58, yBand: [42,  88], speed: 0.34 },
+    ];
+    for (let i = 0; i < defs.length; i++) {
+      const d = defs[i];
+      this.birdFlocks.push({
+        cx: Math.random() * W * 1.4,
+        cy: d.yBand[0] + Math.random() * (d.yBand[1] - d.yBand[0]),
+        speed: d.speed + Math.random() * 0.10,
+        phase: Math.random() * Math.PI * 2,
+        count: d.count, spread: d.spread, scale: d.scale,
+        alpha: d.alpha, formation: d.formation, seed: i,
       });
     }
   }
 
   private _initPowerPoles(): void {
     this.powerPoles = [];
-    for (let x = 80; x < W * 4; x += 90 + (Math.random() * 60 | 0))
-      this.powerPoles.push({ x, h: 55 + (Math.random() * 22 | 0) });
+    let seed = 0;
+    for (let x = 80; x < W * 4; x += 88 + (Math.random() * 58 | 0)) {
+      this.powerPoles.push({ x, h: 54 + (Math.random() * 24 | 0), seed: seed++, hasTx: Math.random() < 0.18 });
+    }
   }
 
   private _initStars(): void {
@@ -343,9 +360,12 @@ export class BackgroundSystem {
         else        { cl.y = 28 + Math.random() * 110; }
       }
     }
-    for (const b of this.dayBirds) {
-      b.x -= b.speed + spd * 0.06; b.phase += 0.04;
-      if (b.x < -30) { b.x = W + 20 + Math.random() * 80; b.y = 55 + Math.random() * 160; }
+    for (const f of this.birdFlocks) {
+      f.cx -= f.speed + spd * 0.08; f.phase += 0.055;
+      if (f.cx < -(f.spread * 4 + 80)) {
+        f.cx = W + f.spread * 3 + 50 + Math.random() * 140;
+        f.cy = 32 + Math.random() * 188;
+      }
     }
     for (const d of this.groundDetails) d.x -= spd;
     this.groundDetails = this.groundDetails.filter(d => d.x > -30);
@@ -355,11 +375,12 @@ export class BackgroundSystem {
       this.groundDetails.push(this._mkDetail(nx));
     }
     for (const p of this.powerPoles) p.x -= spd;
-    this.powerPoles = this.powerPoles.filter(p => p.x > -30);
+    this.powerPoles = this.powerPoles.filter(p => p.x > -40);
     const lastPole = this.powerPoles[this.powerPoles.length - 1];
     if (!lastPole || lastPole.x < W + 80) {
-      const nx = (lastPole?.x ?? W) + 90 + (Math.random() * 60 | 0);
-      this.powerPoles.push({ x: nx, h: 55 + (Math.random() * 22 | 0) });
+      const nx = (lastPole?.x ?? W) + 88 + (Math.random() * 58 | 0);
+      const seed = (lastPole?.seed ?? 0) + 1;
+      this.powerPoles.push({ x: nx, h: 54 + (Math.random() * 24 | 0), seed, hasTx: Math.random() < 0.18 });
     }
   }
 
@@ -962,6 +983,96 @@ export class BackgroundSystem {
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
+  // DECIDUOUS TREE — rounded crown with branching lobes
+  //   variant 0 = near (full detail, branch stubs, autumn hints)
+  //   variant 1 = mid  (crown lobes, moderate trunk)
+  //   variant 2 = far  (single rounded mass, minimal detail)
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  private _drawDeciduousTree(g: PIXI.Graphics, bx: number, by: number, h: number, seed = 0, variant = 0): void {
+    const trunkH = h * 0.40;
+    const tw     = Math.max(2.4, h * 0.046);
+    // Warmer, lighter greens than pine to read as a different species
+    const c0 = variant === 2 ? 0x0e2008 : 0x0c1c06;
+    const c1 = variant === 2 ? 0x1c4010 : 0x1a3e0e;
+    const c2 = variant === 2 ? 0x2a5818 : 0x285214;
+    const c3 = 0x3c6c22;
+
+    // Trunk
+    g.poly([bx - tw, by, bx + tw, by, bx + tw*0.24, by - trunkH, bx - tw*0.24, by - trunkH])
+     .fill({ color: variant === 2 ? 0x1c1006 : 0x160c04 });
+    if (variant < 2) {
+      g.poly([bx + tw*0.12, by, bx + tw, by, bx + tw*0.24, by - trunkH])
+       .fill({ color: 0x342014, alpha: 0.42 });
+      for (let gb = 0; gb < 4; gb++) {
+        const gy = by - trunkH * (0.14 + gb * 0.24);
+        const bw = tw * (0.80 - gb * 0.14);
+        const jt = Math.sin(seed * 2.1 + gb * 1.9) * 1.3;
+        g.moveTo(bx - bw + jt, gy).lineTo(bx + bw + jt * 0.3, gy - 1.2)
+         .stroke({ width: 0.55, color: 0x0a0604, alpha: 0.30 });
+      }
+    }
+
+    const capCY = by - trunkH - h * 0.22;
+    const cr    = h * 0.30;
+
+    if (variant === 2) {
+      // Far: simple rounded mass (two overlapping circles)
+      g.circle(bx, capCY, cr).fill({ color: c0, alpha: 0.88 });
+      g.circle(bx - cr*0.30, capCY - cr*0.12, cr*0.72).fill({ color: c1, alpha: 0.82 });
+      g.circle(bx + cr*0.22, capCY - cr*0.18, cr*0.60).fill({ color: c2, alpha: 0.30 });
+      return;
+    }
+
+    // Visible branch stubs (near only)
+    if (variant === 0) {
+      const brL = cr * 0.48;
+      for (const ba of [-0.58, -0.20, 0.20, 0.58]) {
+        const bendX = bx + Math.sin(ba) * brL;
+        const bendY = capCY + cr * 0.32 - Math.cos(Math.abs(ba)) * brL * 0.55;
+        g.moveTo(bx, capCY + cr * 0.32).lineTo(bendX, bendY)
+         .stroke({ width: tw * (0.48 - Math.abs(ba) * 0.14), color: 0x160c04, alpha: 0.55 });
+      }
+    }
+
+    // Crown lobes — overlapping circles create natural rounded canopy
+    const lobesNear = [
+      { dx:  0.00, dy:  0.00, r: 1.00, c: c0, a: 0.90 },
+      { dx: -0.36, dy:  0.18, r: 0.70, c: c0, a: 0.82 },
+      { dx:  0.38, dy:  0.16, r: 0.66, c: c1, a: 0.78 },
+      { dx: -0.20, dy: -0.32, r: 0.60, c: c1, a: 0.84 },
+      { dx:  0.26, dy: -0.28, r: 0.58, c: c1, a: 0.80 },
+      { dx:  0.00, dy: -0.42, r: 0.50, c: c2, a: 0.60 },
+      { dx: -0.46, dy: -0.08, r: 0.44, c: c0, a: 0.76 },
+      { dx:  0.46, dy: -0.06, r: 0.42, c: c1, a: 0.70 },
+    ];
+    const lobesMid = [
+      { dx:  0.00, dy:  0.00, r: 1.00, c: c0, a: 0.88 },
+      { dx: -0.34, dy:  0.16, r: 0.68, c: c0, a: 0.80 },
+      { dx:  0.34, dy:  0.14, r: 0.64, c: c1, a: 0.76 },
+      { dx: -0.18, dy: -0.30, r: 0.56, c: c1, a: 0.80 },
+      { dx:  0.22, dy: -0.26, r: 0.52, c: c2, a: 0.55 },
+      { dx:  0.00, dy: -0.38, r: 0.44, c: c2, a: 0.52 },
+    ];
+    for (const l of (variant === 0 ? lobesNear : lobesMid)) {
+      g.circle(bx + l.dx * cr, capCY + l.dy * cr, l.r * cr).fill({ color: l.c, alpha: l.a });
+    }
+
+    // Sunlit upper face
+    g.ellipse(bx + cr*0.16, capCY - cr*0.26, cr*0.58, cr*0.46).fill({ color: c2, alpha: 0.30 });
+    if (variant === 0) {
+      g.ellipse(bx + cr*0.28, capCY - cr*0.40, cr*0.34, cr*0.28).fill({ color: c3, alpha: 0.18 });
+      // Autumn colour hint on ~10% of near deciduous trees
+      if (seed % 10 === 3) {
+        g.circle(bx - cr*0.28, capCY - cr*0.15, cr*0.22).fill({ color: 0x8a4010, alpha: 0.22 });
+        g.circle(bx + cr*0.20, capCY - cr*0.32, cr*0.16).fill({ color: 0xaa5808, alpha: 0.18 });
+      }
+    }
+    // Shadow underside
+    g.ellipse(bx - cr*0.08, capCY + cr*0.36, cr*0.76, cr*0.25).fill({ color: 0x041002, alpha: 0.42 });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // FOREST TREELINES — 3 parallax layers, each a dense pine forest band
   //   Layering order in hillGfx:
   //     far base fill → far trees → mid base fill → mid trees → near base fill → near trees
@@ -996,49 +1107,69 @@ export class BackgroundSystem {
     const g = this.hillGfx;
     g.clear();
 
-    // ── Far forest (parallax 0.09×) — small muted pines in dense band ────
+    // ── Far forest (parallax 0.09×) — dense mixed pine/deciduous band ────
     const fp0 = this._hillProfile(0.09, 50, 44, 19, 8, 0.0053, 0.0122, 0.0031, 0.18, 8.3);
     g.poly(fp0).fill({ color: 0x2e4c1c, alpha: 0.62 });
     g.poly(this._shiftY(fp0, -3)).fill({ color: 0x3e6224, alpha: 0.14 });
 
-    const FAR_N = 90, FAR_S = 20, FAR_T = FAR_N * FAR_S;
+    const FAR_N = 155, FAR_S = 11, FAR_T = FAR_N * FAR_S;
     const off0  = this.bgScrollX * 0.09;
     for (let i = 0; i < FAR_N; i++) {
-      const wx = i * FAR_S + Math.sin(i * 3.71) * 3;
+      const wx = i * FAR_S + Math.sin(i * 3.71) * 2;
       const sx = ((wx - off0) % FAR_T + FAR_T) % FAR_T - FAR_S;
-      if (sx < -28 || sx > W + 28) continue;
-      const hh = 34 + Math.abs(Math.sin(i * 2.31)) * 16;
-      this._drawPineTree(g, sx, GROUND_Y, hh, i, 2);
+      if (sx < -20 || sx > W + 20) continue;
+      const hh = 30 + Math.abs(Math.sin(i * 2.31)) * 14;
+      if (i % 4 < 3) { this._drawPineTree(g, sx, GROUND_Y, hh, i, 2); }
+      else            { this._drawDeciduousTree(g, sx, GROUND_Y, hh * 0.88, i + 44, 2); }
     }
 
-    // ── Mid forest (parallax 0.17×) — medium deep-green pines ────────────
+    // ── Mid forest (parallax 0.17×) — dense mixed, pine & deciduous ──────
     const fp1 = this._hillProfile(0.17, 38, 52, 21, 9, 0.0067, 0.0148, 0.0038, 0.52, 4.8);
     g.poly(fp1).fill({ color: 0x1e3c10, alpha: 0.76 });
     g.poly(this._shiftY(fp1, -4)).fill({ color: 0x2c5418, alpha: 0.17 });
 
-    const MID_N = 55, MID_S = 32, MID_T = MID_N * MID_S;
+    const MID_N = 88, MID_S = 20, MID_T = MID_N * MID_S;
     const off1  = this.bgScrollX * 0.17;
     for (let i = 0; i < MID_N; i++) {
-      const wx = i * MID_S + Math.sin(i * 2.19) * 7;
+      const wx = i * MID_S + Math.sin(i * 2.19) * 5;
       const sx = ((wx - off1) % MID_T + MID_T) % MID_T - MID_S;
-      if (sx < -40 || sx > W + 40) continue;
-      const hh = 60 + Math.abs(Math.sin(i * 1.91)) * 28;
-      this._drawPineTree(g, sx, GROUND_Y, hh, i + 31, 1);
+      if (sx < -44 || sx > W + 44) continue;
+      const hh = 56 + Math.abs(Math.sin(i * 1.91)) * 26;
+      if (i % 5 < 3) { this._drawPineTree(g, sx, GROUND_Y, hh, i + 31, 1); }
+      else            { this._drawDeciduousTree(g, sx, GROUND_Y, hh * 0.94, i + 52, 1); }
     }
 
-    // ── Near forest (parallax 0.28×) — large rich-green pines ────────────
+    // ── Near forest (parallax 0.28×) — even mix, full detail ─────────────
     const fp2 = this._hillProfile(0.28, 24, 40, 16, 7, 0.0087, 0.0197, 0.0050, 1.72, 2.2);
     g.poly(fp2).fill({ color: 0x152e08, alpha: 0.88 });
     g.poly(this._shiftY(fp2, -5)).fill({ color: 0x224410, alpha: 0.20 });
 
-    const NEAR_N = 38, NEAR_S = 52, NEAR_T = NEAR_N * NEAR_S;
+    const NEAR_N = 52, NEAR_S = 38, NEAR_T = NEAR_N * NEAR_S;
     const off2   = this.bgScrollX * 0.28;
     for (let i = 0; i < NEAR_N; i++) {
-      const wx = i * NEAR_S + Math.sin(i * 1.83) * 11;
+      const wx = i * NEAR_S + Math.sin(i * 1.83) * 12;
       const sx = ((wx - off2) % NEAR_T + NEAR_T) % NEAR_T - NEAR_S;
-      if (sx < -58 || sx > W + 58) continue;
-      const hh = 90 + Math.abs(Math.sin(i * 1.63)) * 46;
-      this._drawPineTree(g, sx, GROUND_Y, hh, i + 67, 0);
+      if (sx < -64 || sx > W + 64) continue;
+      const hh = 86 + Math.abs(Math.sin(i * 1.63)) * 50;
+      // Slightly stagger deciduous to break regularity
+      if ((i + (i >> 2)) % 2 === 0) { this._drawPineTree(g, sx, GROUND_Y, hh, i + 67, 0); }
+      else                           { this._drawDeciduousTree(g, sx, GROUND_Y, hh * 0.90, i + 89, 0); }
+    }
+
+    // ── Very-near forest (parallax 0.42×) — towering foreground trees ────
+    const fp3 = this._hillProfile(0.42, 16, 28, 12, 5, 0.0110, 0.0260, 0.0068, 2.81, 1.1);
+    g.poly(fp3).fill({ color: 0x0e2006, alpha: 0.92 });
+    g.poly(this._shiftY(fp3, -6)).fill({ color: 0x1a3410, alpha: 0.22 });
+
+    const VN_N = 30, VN_S = 64, VN_T = VN_N * VN_S;
+    const off3  = this.bgScrollX * 0.42;
+    for (let i = 0; i < VN_N; i++) {
+      const wx = i * VN_S + Math.sin(i * 1.61) * 14;
+      const sx = ((wx - off3) % VN_T + VN_T) % VN_T - VN_S;
+      if (sx < -90 || sx > W + 90) continue;
+      const hh = 108 + Math.abs(Math.sin(i * 1.44)) * 62;
+      if (i % 5 < 2) { this._drawPineTree(g, sx, GROUND_Y, hh, i + 200, 0); }
+      else            { this._drawDeciduousTree(g, sx, GROUND_Y, hh * 0.88, i + 120, 0); }
     }
   }
 
@@ -1153,30 +1284,44 @@ export class BackgroundSystem {
 
   private _drawPowerLines(daytime: boolean): void {
     const g = this.foreGfx; g.clear();
-    const poleCol   = daytime ? 0x3a3020 : 0x1a1a1a;
-    const wireCol   = daytime ? 0x28221a : 0x111111;
-    const poleAlpha = daytime ? 0.75 : 0.88;
+    const wireCol = daytime ? 0x1e1a12 : 0x0e0e0e;
 
+    // ── Wires drawn first (behind poles) ────────────────────────────────────
+    const ARM = 20; // crossarm half-width — must match pole drawing below
+    const ARM2 = 16;
     for (let i = 0; i < this.powerPoles.length - 1; i++) {
       const p1 = this.powerPoles[i], p2 = this.powerPoles[i + 1];
-      if (p2.x < -20 || p1.x > W + 20) continue;
-      for (const wf of [0.14, 0.28, 0.42]) {
-        const y1 = GROUND_Y - p1.h * (1 - wf), y2 = GROUND_Y - p2.h * (1 - wf);
-        const midX = (p1.x + p2.x) * 0.5, sag = (p2.x - p1.x) * 0.038;
-        g.moveTo(p1.x, y1).quadraticCurveTo(midX, Math.max(y1, y2) + sag, p2.x, y2)
-         .stroke({ width: 1, color: wireCol, alpha: daytime ? 0.50 : 0.72 });
+      if (p2.x < -30 || p1.x > W + 30) continue;
+      const arm1Y1 = GROUND_Y - p1.h + 10, arm1Y2 = GROUND_Y - p2.h + 10;
+      const arm2Y1 = GROUND_Y - p1.h + 20, arm2Y2 = GROUND_Y - p2.h + 20;
+      const span = Math.abs(p2.x - p1.x);
+      const sagF = span * 0.030;
+
+      // Three conductors on main crossarm (at left, centre, right insulator positions)
+      for (const [offX] of [[-ARM], [0], [ARM]] as [number][]) {
+        const wx1 = p1.x + offX, wy1 = arm1Y1 - 9.2;
+        const wx2 = p2.x + offX, wy2 = arm1Y2 - 9.2;
+        const mx = (wx1 + wx2) * 0.5;
+        g.moveTo(wx1, wy1)
+         .quadraticCurveTo(mx, Math.max(wy1, wy2) + sagF, wx2, wy2)
+         .stroke({ width: 0.9, color: wireCol, alpha: daytime ? 0.55 : 0.80 });
+      }
+      // Neutral/ground wire on secondary arm (thinner)
+      {
+        const ny1 = arm2Y1 - 6.5, ny2 = arm2Y2 - 6.5, nx = (p1.x + p2.x) * 0.5;
+        g.moveTo(p1.x, ny1)
+         .quadraticCurveTo(nx, Math.max(ny1, ny2) + sagF * 0.80, p2.x, ny2)
+         .stroke({ width: 0.65, color: wireCol, alpha: daytime ? 0.40 : 0.60 });
       }
     }
+
+    // ── Poles drawn on top of wires ──────────────────────────────────────────
     for (const p of this.powerPoles) {
-      if (p.x < -20 || p.x > W + 20) continue;
-      const topY = GROUND_Y - p.h, armY = topY + p.h * 0.14, armHalf = 13;
-      g.moveTo(p.x, GROUND_Y).lineTo(p.x, topY).stroke({ width: 3.5, color: poleCol, alpha: poleAlpha });
-      g.moveTo(p.x - armHalf, armY).lineTo(p.x + armHalf, armY)
-       .stroke({ width: 2.5, color: poleCol, alpha: poleAlpha });
-      for (const ins of [{ x: p.x - armHalf, y: armY }, { x: p.x + armHalf, y: armY }, { x: p.x, y: topY }])
-        g.circle(ins.x, ins.y, 2.5).fill({ color: daytime ? 0x8a7a50 : 0x555555, alpha: 0.85 });
+      if (p.x < -30 || p.x > W + 30) continue;
+      this._drawPowerPole(g, p, daytime, ARM, ARM2);
     }
 
+    // ── Foreground grass fringe ──────────────────────────────────────────────
     if (daytime) {
       const scrollOff = this.bgScrollX * 1.1;
       for (let i = 0; i < 55; i++) {
@@ -1186,6 +1331,131 @@ export class BackgroundSystem {
         g.moveTo(gx, GROUND_Y + 2).lineTo(gx + lean, GROUND_Y + 2 - gh)
          .stroke({ width: 1.5, color: 0x68c830, alpha: 0.65 });
       }
+    }
+  }
+
+  private _drawPowerPole(g: PIXI.Graphics, p: PowerPole, daytime: boolean, ARM: number, ARM2: number): void {
+    const { x, h, seed, hasTx } = p;
+    const topY = GROUND_Y - h;
+    const poleCol  = daytime ? 0x38281a : 0x181410;
+    const woodHi   = daytime ? 0x4a3620 : 0x22180e;
+    const poleA    = daytime ? 0.84 : 0.92;
+    const insCol   = daytime ? 0x806030 : 0x3a3028;
+    const insBell  = daytime ? 0x988040 : 0x484038;
+
+    // ── Tapered shaft ────────────────────────────────────────────────────────
+    const bW = 3.6, tW = 2.0;
+    g.poly([x - bW, GROUND_Y, x + bW, GROUND_Y, x + tW, topY, x - tW, topY])
+     .fill({ color: poleCol, alpha: poleA });
+    // Sunlit right face
+    g.poly([x + bW * 0.3, GROUND_Y, x + bW, GROUND_Y, x + tW, topY])
+     .fill({ color: woodHi, alpha: 0.38 });
+    // Vertical grain lines
+    for (let gi = 0; gi < 4; gi++) {
+      const gx = x + (-1.1 + gi * 0.74) + Math.sin(seed * 1.7 + gi * 2.3) * 0.45;
+      g.moveTo(gx, GROUND_Y - 5).lineTo(gx + Math.sin(gi * 1.3) * 0.5, topY + 10)
+       .stroke({ width: 0.42, color: 0x0c0804, alpha: 0.33 });
+    }
+    // Horizontal treatment-ring marks (pressure-treated wood bands)
+    for (let bi = 0; bi < 3; bi++) {
+      const by2 = GROUND_Y - h * (0.22 + bi * 0.28);
+      const bw  = bW - (bW - tW) * (0.22 + bi * 0.28);
+      g.moveTo(x - bw, by2).lineTo(x + bw, by2)
+       .stroke({ width: 0.75, color: 0x1e1208, alpha: 0.42 });
+    }
+
+    // ── Climbing step bolts (lower 65% of pole) ──────────────────────────────
+    const stepsStart = GROUND_Y - h * 0.65;
+    for (let si = 0; stepsStart + si * 9 < GROUND_Y - 10; si++) {
+      const sy   = stepsStart + si * 9;
+      const side = si % 2 === 0 ? 1 : -1;
+      g.moveTo(x, sy).lineTo(x + side * 5.5, sy)
+       .stroke({ width: 1.2, color: daytime ? 0x484030 : 0x242018, alpha: 0.52 });
+    }
+
+    // ── Upper pole section (darker, thinner above arm 1) ────────────────────
+    g.moveTo(x, topY + 10).lineTo(x, topY)
+     .stroke({ width: tW * 2, color: poleCol, alpha: poleA * 0.90 });
+
+    // ── Cross arms ───────────────────────────────────────────────────────────
+    const arm1Y = topY + 10;
+    const arm2Y = topY + 20;
+
+    // Main crossarm (arm 1)
+    g.poly([x - ARM, arm1Y - 1.4, x + ARM, arm1Y - 1.4,
+            x + ARM, arm1Y + 2.2, x - ARM, arm1Y + 2.2])
+     .fill({ color: poleCol, alpha: poleA });
+    // Bottom shadow of arm 1
+    g.moveTo(x - ARM, arm1Y + 2.2).lineTo(x + ARM, arm1Y + 2.2)
+     .stroke({ width: 0.8, color: 0x060402, alpha: 0.38 });
+    // Arm-to-pole gusset blocks
+    g.rect(x - 2, arm1Y - 3, 4, arm1Y + 3 - (arm1Y - 3)).fill({ color: woodHi, alpha: 0.55 });
+
+    // Secondary crossarm (arm 2) — slightly narrower
+    g.poly([x - ARM2, arm2Y - 1.1, x + ARM2, arm2Y - 1.1,
+            x + ARM2, arm2Y + 1.8, x - ARM2, arm2Y + 1.8])
+     .fill({ color: poleCol, alpha: poleA * 0.88 });
+
+    // ── Insulators — porcelain bell shape (neck + bell + skirt) ─────────────
+    // 3 on main arm: left, centre, right; 1 on secondary arm: centre
+    const insPositions1 = [x - ARM, x, x + ARM];
+    for (const ix of insPositions1) {
+      // Neck
+      g.rect(ix - 1.1, arm1Y - 5.5, 2.2, 3.8).fill({ color: insCol, alpha: 0.88 });
+      // Bell body
+      g.circle(ix, arm1Y - 7.5, 2.7).fill({ color: insBell, alpha: 0.90 });
+      // Porcelain skirt (wide thin disc)
+      g.ellipse(ix, arm1Y - 6.2, 3.1, 0.9).fill({ color: insBell, alpha: 0.72 });
+      // Wire tie-wire attachment point
+      if (daytime) g.circle(ix, arm1Y - 9.5, 0.9).fill({ color: 0xcca840, alpha: 0.55 });
+    }
+    // Centre insulator on arm 2
+    g.rect(x - 1.0, arm2Y - 4.8, 2.0, 3.2).fill({ color: insCol, alpha: 0.82 });
+    g.circle(x, arm2Y - 6.4, 2.3).fill({ color: insBell, alpha: 0.84 });
+    g.ellipse(x, arm2Y - 5.4, 2.7, 0.8).fill({ color: insBell, alpha: 0.68 });
+
+    // ── Top cap / lightning rod ──────────────────────────────────────────────
+    g.rect(x - 1.6, topY - 3.5, 3.2, 4.5).fill({ color: daytime ? 0x504438 : 0x282420, alpha: 0.90 });
+    g.poly([x - 0.9, topY - 3.5, x, topY - 7.5, x + 0.9, topY - 3.5])
+     .fill({ color: daytime ? 0x706050 : 0x38322c, alpha: 0.85 });
+
+    // ── Guy wires — every 4th pole (seed-based) ──────────────────────────────
+    if (seed % 4 === 1) {
+      const gwY  = GROUND_Y - h * 0.52;
+      const ancL = x - 26, ancR = x + 26;
+      g.moveTo(x, gwY).lineTo(ancL, GROUND_Y - 3)
+       .stroke({ width: 0.85, color: daytime ? 0x28201a : 0x14100c, alpha: 0.58 });
+      g.moveTo(x, gwY).lineTo(ancR, GROUND_Y - 3)
+       .stroke({ width: 0.85, color: daytime ? 0x28201a : 0x14100c, alpha: 0.58 });
+      // Ground anchors
+      g.circle(ancL, GROUND_Y - 2, 2.4).fill({ color: daytime ? 0x382c1e : 0x181410, alpha: 0.72 });
+      g.circle(ancR, GROUND_Y - 2, 2.4).fill({ color: daytime ? 0x382c1e : 0x181410, alpha: 0.72 });
+    }
+
+    // ── Transformer (~18% of poles) ──────────────────────────────────────────
+    if (hasTx) {
+      const txY = GROUND_Y - h * 0.42;
+      // Cylinder body
+      g.rect(x - 6.5, txY - 13, 13, 13).fill({ color: daytime ? 0x3a3424 : 0x1a1814, alpha: 0.92 });
+      g.rect(x - 6.5, txY - 13, 13, 13).stroke({ width: 0.75, color: daytime ? 0x544838 : 0x282420, alpha: 0.82 });
+      // Dome cap
+      g.ellipse(x, txY - 13, 6.5, 2.2).fill({ color: daytime ? 0x464038 : 0x201e18, alpha: 0.90 });
+      // Base flange
+      g.ellipse(x, txY, 6.5, 1.8).fill({ color: daytime ? 0x2e2820 : 0x121010, alpha: 0.85 });
+      // Cooling fins
+      for (let fi = 0; fi < 3; fi++) {
+        g.moveTo(x - 6, txY - 3 - fi * 3).lineTo(x + 6, txY - 3 - fi * 3)
+         .stroke({ width: 0.45, color: daytime ? 0x4e4838 : 0x1e1c18, alpha: 0.52 });
+      }
+      // Three bushing insulators on top
+      for (let bi = -1; bi <= 1; bi++) {
+        const bix = x + bi * 3.8;
+        g.rect(bix - 0.75, txY - 15, 1.5, 2.2).fill({ color: insCol, alpha: 0.78 });
+        g.circle(bix, txY - 15.5, 1.7).fill({ color: insBell, alpha: 0.76 });
+      }
+      // Cable from transformer top to main arm
+      g.moveTo(x, txY - 16).lineTo(x, arm1Y - 9.5)
+       .stroke({ width: 0.55, color: daytime ? 0x201a12 : 0x0e0c0a, alpha: 0.60 });
     }
   }
 
@@ -1210,12 +1480,64 @@ export class BackgroundSystem {
 
   private _drawDayBirds(): void {
     const g = this.bgCityGfx; g.clear();
-    const now = Date.now();
-    for (const b of this.dayBirds) {
-      const wing = Math.sin(b.phase) * 4, sc = 0.7 + b.speed * 0.8;
-      g.moveTo(b.x, b.y).lineTo(b.x - 8 * sc, b.y + wing)
-       .moveTo(b.x, b.y).lineTo(b.x + 8 * sc, b.y + wing)
-       .stroke({ width: 1.2, color: 0x1a2a40, alpha: 0.55 + 0.1 * Math.sin(now * 0.002 + b.phase) });
+    for (const flock of this.birdFlocks) {
+      this._drawBirdFlock(g, flock);
+    }
+  }
+
+  private _drawBirdFlock(g: PIXI.Graphics, flock: BirdFlock): void {
+    const { cx, cy, phase, count, spread, scale, alpha, formation, seed } = flock;
+
+    for (let i = 0; i < count; i++) {
+      // Position of this bird relative to flock center
+      let dx = 0, dy = 0;
+      if (formation === 0) {          // V-formation: leader at front, pairs trail back
+        if (i > 0) {
+          const row  = Math.ceil(i / 2);
+          const side = i % 2 === 0 ? -1 : 1;
+          dx = side * row * spread * 0.62;
+          dy = row  * spread * 0.28;
+        }
+      } else if (formation === 1) {   // Diagonal skein line
+        dx = (i - count * 0.5) * spread * 0.88;
+        dy = i * spread * 0.20 + (i % 2) * spread * 0.12;
+      } else if (formation === 2) {   // Loose cluster
+        const ang = (i / count) * Math.PI * 2 + seed * 2.3;
+        const rad = spread * (0.22 + (i % 3) * 0.24);
+        dx = Math.cos(ang) * rad;
+        dy = Math.sin(ang) * rad * 0.44;
+      } else {                        // Scattered irregular
+        dx = Math.sin(seed * 1.3 + i * 2.71) * spread;
+        dy = Math.cos(seed * 0.9 + i * 1.83) * spread * 0.42;
+      }
+
+      const bx  = cx + dx;
+      const by2 = cy + dy;
+      if (bx < -18 || bx > W + 18) continue;
+
+      // Wing flap — each bird offset in phase for natural staggering
+      const bPhase  = phase + i * 0.36;
+      const wingTip = Math.sin(bPhase) * 4.8 * scale;
+      const elbow   = wingTip * 0.38;     // mid-wing inflection
+      const span    = 6.8 * scale;
+
+      // Alpha fades slightly for trailing birds
+      const ba = alpha * (1 - Math.min(0.30, Math.abs(dy) / (spread * count * 0.38)));
+
+      // Small body dot
+      g.circle(bx, by2, 1.1 * scale).fill({ color: 0x1a2840, alpha: ba * 0.85 });
+
+      // Left wing: two-segment to simulate elbow joint
+      g.moveTo(bx, by2)
+       .lineTo(bx - span * 0.44, by2 + elbow)
+       .lineTo(bx - span,        by2 + wingTip)
+       .stroke({ width: 1.0 * scale, color: 0x18283c, alpha: ba });
+
+      // Right wing
+      g.moveTo(bx, by2)
+       .lineTo(bx + span * 0.44, by2 + elbow)
+       .lineTo(bx + span,        by2 + wingTip)
+       .stroke({ width: 1.0 * scale, color: 0x18283c, alpha: ba });
     }
   }
 
