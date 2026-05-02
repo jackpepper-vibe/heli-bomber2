@@ -9,7 +9,7 @@ import { blinkMs } from '../utils/math';
 
 interface Star         { x: number; y: number; r: number; phase: number; layer: number; }
 interface Cloud        { x: number; y: number; w: number; h: number; alpha: number; speed: number; }
-interface BgBuilding   { x: number; w: number; h: number; wins: Array<{ rx: number; ry: number; lit: boolean }>; }
+interface BgBuilding   { x: number; w: number; h: number; style: 0|1|2|3; seed: number; wins: Array<{ rx: number; ry: number; lit: boolean; warmth: number }>; rooftop: Array<{ type: 'ac'|'tank'|'antenna'|'hvac'; rx: number; rh: number }>; }
 interface GroundDetail { x: number; type: 'tree' | 'lamp' | 'antenna'; h: number; }
 interface DayBird      { x: number; y: number; phase: number; speed: number; }
 interface PowerPole    { x: number; h: number; }
@@ -143,16 +143,174 @@ export class BackgroundSystem {
 
   private _initBgCity(): void {
     this.bgCity = [];
-    let x = 0;
+    let x = 0, si = 0;
     while (x < W * 5) {
-      const h = 22 + Math.random() * 80, ww = 18 + Math.random() * 52;
+      const h   = 22 + Math.random() * 80;
+      const ww  = 18 + Math.random() * 52;
+      const style = (si % 4) as 0 | 1 | 2 | 3;
+      const seed  = Math.floor(x);
+      const rows  = Math.floor(h / 10), cols = Math.floor(ww / 9);
       const wins: BgBuilding['wins'] = [];
-      const rows = Math.floor(h / 10), cols = Math.floor(ww / 9);
-      for (let r = 0; r < rows; r++)
-        for (let c = 0; c < cols; c++)
-          wins.push({ rx: c / cols, ry: r / rows, lit: Math.random() > 0.45 });
-      this.bgCity.push({ x, w: ww, h, wins });
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const lit    = Math.random() > (style === 2 ? 0.60 : 0.42);
+          const warmth = style === 1 ? Math.random() * 0.35
+                       : style === 2 ? 0.70 + Math.random() * 0.30
+                       :               0.25 + Math.random() * 0.75;
+          wins.push({ rx: c / cols, ry: r / rows, lit, warmth });
+        }
+      }
+      const rooftop: BgBuilding['rooftop'] = [];
+      const rtCount = 1 + Math.floor(Math.random() * (h > 50 ? 3 : 2));
+      const rtTypes: Array<'ac'|'tank'|'antenna'|'hvac'> = ['ac', 'tank', 'antenna', 'hvac'];
+      for (let i = 0; i < rtCount; i++)
+        rooftop.push({ type: rtTypes[(seed + i * 3) % 4], rx: 0.08 + Math.random() * 0.84, rh: 4 + Math.random() * 10 });
+      this.bgCity.push({ x, w: ww, h, style, seed, wins, rooftop });
       x += ww + 4 + Math.random() * 18;
+      si++;
+    }
+  }
+
+  private _drawBuilding(g: PIXI.Graphics, sx: number, bg: BgBuilding, now: number): void {
+    const { w, h, style, seed, wins, rooftop } = bg;
+    const topY = GROUND_Y - h;
+
+    // ── Base silhouette ─────────────────────────────────────────────────────
+    const BC = ([0x110b08, 0x081018, 0x0c0d0f, 0x10111a] as const)[style];
+    g.rect(sx, topY, w, h).fill({ color: BC, alpha: 0.92 });
+    if (h > 62 && style !== 2) {
+      const sbW = w * 0.72, sbX = sx + (w - sbW) / 2, sbH = h * 0.36;
+      g.rect(sbX, topY, sbW, sbH).fill({ color: (BC + 0x020204) as number, alpha: 0.92 });
+      g.moveTo(sbX, topY + sbH).lineTo(sbX + sbW, topY + sbH)
+       .stroke({ width: 1, color: 0x252534, alpha: 0.60 });
+    }
+
+    // ── Facade texture (batched) ─────────────────────────────────────────────
+    if (style === 0) {
+      for (let ly = 4; ly < h; ly += 4)
+        g.moveTo(sx, topY + ly).lineTo(sx + w, topY + ly);
+      g.stroke({ width: 0.5, color: 0x0c0906, alpha: 0.24 });
+      for (let row = 0; row <= Math.ceil(h / 4); row++) {
+        const wy = topY + row * 4, xOff = (row % 2) * 3.5;
+        for (let col = 0; col * 7 + xOff < w; col++) {
+          const lx = col * 7 + xOff;
+          if (lx < 1) continue;
+          g.moveTo(sx + lx, wy).lineTo(sx + lx, wy + 3.5);
+        }
+      }
+      g.stroke({ width: 0.5, color: 0x0a0705, alpha: 0.20 });
+    } else if (style === 1) {
+      for (let ly = 8; ly < h; ly += 8)
+        g.moveTo(sx, topY + ly).lineTo(sx + w, topY + ly);
+      g.stroke({ width: 0.7, color: 0x1a3050, alpha: 0.42 });
+      for (let lx = 7; lx < w; lx += 7)
+        g.moveTo(sx + lx, topY).lineTo(sx + lx, topY + h);
+      g.stroke({ width: 0.4, color: 0x162840, alpha: 0.32 });
+    } else if (style === 2) {
+      for (let lx = 2.5; lx < w; lx += 3.5)
+        g.moveTo(sx + lx, topY).lineTo(sx + lx, topY + h);
+      g.stroke({ width: 0.5, color: 0x151618, alpha: 0.42 });
+    } else {
+      for (let ly = 5; ly < h; ly += 18)
+        g.moveTo(sx, topY + ly).lineTo(sx + w, topY + ly);
+      g.stroke({ width: 1.0, color: 0x0a0b0d, alpha: 0.48 });
+      for (let ly = 11; ly < h; ly += 6)
+        g.moveTo(sx, topY + ly).lineTo(sx + w, topY + ly);
+      g.stroke({ width: 0.4, color: 0x0a0b0d, alpha: 0.18 });
+    }
+
+    // ── Window dark recesses (all batched into one fill) ────────────────────
+    const rows = Math.floor(h / 10);
+    const wPxW = style === 1 ? 5 : 4, wPxH = style === 1 ? 6 : 5;
+    for (const win of wins) {
+      const rowI = Math.round(win.ry * rows);
+      if (style === 1 && rowI % 5 === 2) continue;
+      const wx = sx + win.rx * w + 1.5, wy = topY + win.ry * h + 2;
+      g.rect(wx - 0.5, wy - 0.5, wPxW + 1, wPxH + 1);
+    }
+    g.fill({ color: 0x010208, alpha: 0.88 });
+
+    // ── Window glass fills (animated per-window) ────────────────────────────
+    for (const win of wins) {
+      if (!win.lit) continue;
+      const rowI = Math.round(win.ry * rows);
+      if (style === 1 && rowI % 5 === 2) continue;
+      const wx = sx + win.rx * w + 1.5, wy = topY + win.ry * h + 2;
+      const flicker = Math.sin(now * 0.002 + seed * 0.07 + win.rx * 13) > 0.94;
+      let wColor: number, wAlpha: number;
+      if (flicker) {
+        wColor = 0x773300; wAlpha = 0.28;
+      } else {
+        const anim = 0.52 + 0.18 * Math.sin(now * 0.001 + win.ry * 7 + seed);
+        wColor = style === 1 ? (win.warmth < 0.2 ? 0x44aaff : 0x88bbee)
+               : style === 2 ? 0xee8800
+               : win.warmth > 0.65 ? 0xffcc44 : win.warmth > 0.35 ? 0xffd899 : 0xbbd0ee;
+        wAlpha = anim;
+      }
+      g.rect(wx, wy, wPxW, wPxH).fill({ color: wColor, alpha: wAlpha });
+      g.moveTo(wx + wPxW * 0.5, wy).lineTo(wx + wPxW * 0.5, wy + wPxH)
+       .stroke({ width: 0.5, color: 0x0a0a14, alpha: 0.45 });
+      if (style === 0 || style === 3)
+        g.rect(wx - 0.5, wy + wPxH, wPxW + 1, 1.2).fill({ color: 0x1a1410, alpha: 0.45 });
+      g.rect(wx - 1, wy - 1, wPxW + 2, wPxH + 2).fill({ color: wColor, alpha: wAlpha * 0.07 });
+    }
+
+    // ── Outline ─────────────────────────────────────────────────────────────
+    g.rect(sx, topY, w, h).stroke({ width: 0.5, color: 0x202030, alpha: 0.65 });
+
+    // ── Rooftop equipment ────────────────────────────────────────────────────
+    for (const rt of rooftop) {
+      const rpx = sx + rt.rx * w;
+      if (rt.type === 'ac') {
+        const bw = 9, bh = 5;
+        g.rect(rpx - bw / 2, topY - bh, bw, bh).fill({ color: 0x1a1a22, alpha: 0.90 });
+        g.rect(rpx - bw / 2, topY - bh, bw, bh).stroke({ width: 0.5, color: 0x303042, alpha: 0.70 });
+        for (let fi = 1; fi < 4; fi++)
+          g.moveTo(rpx - bw / 2 + 1, topY - bh + fi * 1.1).lineTo(rpx + bw / 2 - 1, topY - bh + fi * 1.1);
+        g.stroke({ width: 0.4, color: 0x101014, alpha: 0.50 });
+        g.circle(rpx, topY - bh * 0.55, 2.2).fill({ color: 0x4466aa, alpha: 0.14 });
+      } else if (rt.type === 'tank') {
+        const tw = 9, th = 11 + rt.rh * 0.4;
+        g.moveTo(rpx - 3, topY).lineTo(rpx - 3, topY - 5)
+         .moveTo(rpx + 3, topY).lineTo(rpx + 3, topY - 5);
+        g.stroke({ width: 1, color: 0x2a2a38, alpha: 0.85 });
+        g.rect(rpx - tw / 2, topY - 5 - th, tw, th).fill({ color: 0x191924, alpha: 0.88 });
+        g.ellipse(rpx, topY - 5 - th, tw / 2, 2.5).fill({ color: 0x242434, alpha: 0.90 });
+        g.moveTo(rpx - tw / 2, topY - 5 - th / 3).lineTo(rpx + tw / 2, topY - 5 - th / 3)
+         .moveTo(rpx - tw / 2, topY - 5 - th * 2 / 3).lineTo(rpx + tw / 2, topY - 5 - th * 2 / 3);
+        g.stroke({ width: 0.5, color: 0x303042, alpha: 0.50 });
+      } else if (rt.type === 'antenna') {
+        const ah = 16 + rt.rh;
+        g.moveTo(rpx, topY).lineTo(rpx, topY - ah).stroke({ width: 0.9, color: 0x282832, alpha: 0.88 });
+        const b0Y = topY - ah * 0.22;
+        for (let bar = 0; bar < 4; bar++) {
+          const bY = topY - ah * (0.22 + bar * 0.22), bL = 11 - bar * 2.4;
+          g.moveTo(rpx - bL, bY).lineTo(rpx + bL, bY);
+        }
+        g.stroke({ width: 0.7, color: 0x262630, alpha: 0.75 });
+        g.moveTo(rpx, topY - ah).lineTo(rpx - 11, b0Y)
+         .moveTo(rpx, topY - ah).lineTo(rpx + 11, b0Y);
+        g.stroke({ width: 0.4, color: 0x1c1c24, alpha: 0.45 });
+        if (blinkMs(900)) {
+          g.circle(rpx, topY - ah, 1.8).fill({ color: 0xff2200, alpha: 0.88 });
+          g.circle(rpx, topY - ah, 4.5).fill({ color: 0xff2200, alpha: 0.18 });
+        }
+      } else {
+        const hw = 12, hh = 6;
+        g.rect(rpx - hw / 2, topY - hh, hw, hh).fill({ color: 0x141520, alpha: 0.90 });
+        g.rect(rpx - hw / 2, topY - hh, hw, hh).stroke({ width: 0.5, color: 0x282838, alpha: 0.70 });
+        for (let lv = 0; lv < 3; lv++)
+          g.moveTo(rpx - hw / 2 + 1, topY - hh + 1 + lv * 1.6).lineTo(rpx + hw / 2 - 1, topY - hh + 1 + lv * 1.6);
+        g.stroke({ width: 0.4, color: 0x0f0f18, alpha: 0.55 });
+        g.circle(rpx - 3, topY - hh + 3, 2).fill({ color: 0x060810 });
+        g.circle(rpx + 3, topY - hh + 3, 2).fill({ color: 0x060810 });
+      }
+    }
+
+    // ── Aviation obstruction beacon on tall buildings ────────────────────────
+    if (h > 55 && blinkMs(900)) {
+      g.circle(sx + w * 0.5, topY - 3, 2).fill({ color: 0xff3300, alpha: 0.85 });
+      g.circle(sx + w * 0.5, topY - 3, 5).fill({ color: 0xff2200, alpha: 0.15 });
     }
   }
 
@@ -1157,23 +1315,11 @@ export class BackgroundSystem {
   private _drawBgCity(): void {
     const g = this.bgCityGfx; g.clear();
     const now = Date.now();
+    const WORLD = W * 5;
     for (const bg of this.bgCity) {
-      const sx = ((bg.x - this.bgScrollX * 0.12) % (W * 5) + W * 5) % (W * 5) - 80;
+      const sx = ((bg.x - this.bgScrollX * 0.12) % WORLD + WORLD) % WORLD - 80;
       if (sx > W + 80 || sx + bg.w < -20) continue;
-      const topY = GROUND_Y - bg.h;
-      g.rect(sx, topY, bg.w, bg.h).fill({ color: 0x08090f, alpha: 0.88 });
-      g.rect(sx, topY, bg.w, bg.h).stroke({ width: 0.5, color: 0x1a1e30, alpha: 0.5 });
-      for (const win of bg.wins) {
-        if (!win.lit) continue;
-        const wx = sx + win.rx * bg.w + 1.5, wy = topY + win.ry * bg.h + 2;
-        const flicker = Math.sin(now * 0.002 + bg.x * 0.07 + win.rx * 13) > 0.94;
-        const wColor  = flicker ? 0x884400 : 0xffcc44;
-        const wAlpha  = flicker ? 0.25 : (0.4 + 0.15 * Math.sin(now * 0.001 + win.ry * 7 + bg.x));
-        g.rect(wx, wy, 4, 5).fill({ color: wColor, alpha: wAlpha });
-        g.rect(wx - 1, wy - 1, 6, 7).fill({ color: 0xffaa00, alpha: wAlpha * 0.12 });
-      }
-      if (bg.h > 55 && blinkMs(900))
-        g.circle(sx + bg.w * 0.5, topY - 3, 2).fill({ color: 0xff3300, alpha: 0.85 });
+      this._drawBuilding(g, sx, bg, now);
     }
     g.rect(0, GROUND_Y - 18, W, 18).fill({ color: 0x0d1020, alpha: 0.45 });
     g.rect(0, GROUND_Y - 8,  W,  8).fill({ color: 0x14182a, alpha: 0.28 });
