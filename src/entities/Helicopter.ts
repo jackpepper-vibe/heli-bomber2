@@ -72,19 +72,29 @@ export class Helicopter {
     // Tip-trace ring
     g.circle(cx, cy - 22 * S, 63 * S).stroke({ width: 1.4 * S, color: 0xaad4f0, alpha: 0.28 });
 
-    // 20-ghost traces × 2 antipodal blades = seamless full-disc blur at 180° coverage
-    const GHOSTS = 20;
+    // 14-ghost traces for motion blur backdrop
+    const GHOSTS = 14;
     for (let i = GHOSTS - 1; i >= 0; i--) {
       const a   = rotA - i * (Math.PI / GHOSTS);
-      const alp = 0.077 * Math.pow(1 - i / GHOSTS, 1.6) + 0.005;
+      const alp = 0.055 * Math.pow(1 - i / GHOSTS, 1.4) + 0.006;
       const bx  = Math.cos(a) * 62 * S;
       const by  = Math.sin(a) * 62 * S;
-      // Blade 1
       g.moveTo(cx - bx, cy - 22 * S - by).lineTo(cx + bx, cy - 22 * S + by)
-       .stroke({ width: 2.2 * S, color: COL_HELI_TRIM, alpha: alp });
-      // Blade 2 — antipodal
-      g.moveTo(cx + bx, cy - 22 * S + by).lineTo(cx - bx, cy - 22 * S - by)
-       .stroke({ width: 2.2 * S, color: COL_HELI_TRIM, alpha: alp * 0.82 });
+       .stroke({ width: 2.4 * S, color: COL_HELI_TRIM, alpha: alp });
+    }
+    // Current blade position — bright solid blades (2 antipodal)
+    {
+      const bx = Math.cos(rotA) * 62 * S;
+      const by = Math.sin(rotA) * 62 * S;
+      // Blade glow halo
+      g.moveTo(cx - bx, cy - 22 * S - by).lineTo(cx + bx, cy - 22 * S + by)
+       .stroke({ width: 4.5 * S, color: COL_HELI_GLOW, alpha: 0.18 });
+      // Blade main surface
+      g.moveTo(cx - bx, cy - 22 * S - by).lineTo(cx + bx, cy - 22 * S + by)
+       .stroke({ width: 2.8 * S, color: 0xc8e0f8, alpha: 0.82 });
+      // Blade leading-edge highlight
+      g.moveTo(cx - bx, cy - 22 * S - by).lineTo(cx + bx, cy - 22 * S + by)
+       .stroke({ width: 1.0 * S, color: 0xffffff, alpha: 0.30 });
     }
 
     // ── Rotor mast + swashplate detail ─────────────────────────────────────────
@@ -293,27 +303,27 @@ export class Helicopter {
       // Dark recess behind glass
       g.roundRect(px - 0.8 * S, py - 0.8 * S, WW + 1.6 * S, WH + 1.6 * S, 1.5 * S)
        .fill({ color: 0x050c18, alpha: 0.90 });
-      // Glass fill
+      // Glass fill — vibrant teal cockpit
       g.roundRect(px, py, WW, WH, 1 * S)
-       .fill({ color: 0x3a7ab8, alpha: 0.84 });
-      // Interior ambient
-      g.roundRect(px + 1 * S, py + 1 * S, WW - 2 * S, WH - 2 * S, 0.8 * S)
-       .fill({ color: 0x1a3a5e, alpha: 0.30 });
+       .fill({ color: 0x0a4a7a, alpha: 0.95 });
+      // Glass inner glow
+      g.roundRect(px + 0.5 * S, py + 0.5 * S, WW - 1 * S, WH - 1 * S, 0.8 * S)
+       .fill({ color: 0x2288cc, alpha: 0.22 });
       // Frame stroke
       g.roundRect(px, py, WW, WH, 1 * S)
-       .stroke({ width: 0.9 * S, color: COL_HELI_TRIM, alpha: 0.90 });
+       .stroke({ width: 1.0 * S, color: 0x88d0ff, alpha: 0.80 });
       // Vertical centre divider
       g.moveTo(px + WW * 0.5, py).lineTo(px + WW * 0.5, py + WH)
-       .stroke({ width: 0.5 * S, color: 0x1a3a5a, alpha: 0.70 });
-      // Reflection highlight
-      g.roundRect(px + 1 * S, py + 0.8 * S, WW * 0.55, 1.8 * S, 0.5 * S)
-       .fill({ color: 0xe8f4ff, alpha: 0.55 });
+       .stroke({ width: 0.6 * S, color: 0x3a6a9a, alpha: 0.80 });
+      // Reflection highlight — strong white streak
+      g.roundRect(px + 0.8 * S, py + 0.7 * S, WW * 0.60, 2.2 * S, 0.5 * S)
+       .fill({ color: 0xffffff, alpha: 0.55 });
     }
     // HUD amber glow over all 4 panes
     const hudW = 2 * WW + WGAP;
     const hudH = 2 * WH + WGAP;
     g.roundRect(WX, WY, hudW, hudH, 1.5 * S)
-     .fill({ color: 0xffaa00, alpha: 0.055 + 0.025 * beat });
+     .fill({ color: 0xffaa00, alpha: 0.10 + 0.04 * beat });
     // Full window frame outer stroke
     g.roundRect(WX - 1 * S, WY - 1 * S, hudW + 2 * S, hudH + 2 * S, 2 * S)
      .stroke({ width: 1.2 * S, color: COL_HELI_TRIM });
@@ -595,22 +605,25 @@ export class Helicopter {
       // Dark recess
       ctx.fillStyle = 'rgba(5,12,24,0.90)';
       ctx.fillRect(px - 0.8 * s, py - 0.8 * s, WW + 1.6 * s, WH + 1.6 * s);
-      // Glass fill
-      ctx.fillStyle = 'rgba(58,122,184,0.84)';
+      // Glass fill — vibrant teal cockpit
+      ctx.fillStyle = 'rgba(10,74,122,0.95)';
       ctx.fillRect(px, py, WW, WH);
+      // Inner glow
+      ctx.fillStyle = 'rgba(34,136,204,0.22)';
+      ctx.fillRect(px + 0.5 * s, py + 0.5 * s, WW - 1 * s, WH - 1 * s);
       // Frame
-      ctx.strokeStyle = '#3d6e9e';
-      ctx.lineWidth   = Math.max(0.5, 0.9 * s);
+      ctx.strokeStyle = 'rgba(136,208,255,0.80)';
+      ctx.lineWidth   = Math.max(0.5, 1.0 * s);
       ctx.strokeRect(px, py, WW, WH);
       // Vertical divider
-      ctx.strokeStyle = 'rgba(26,58,90,0.70)';
-      ctx.lineWidth   = Math.max(0.3, 0.5 * s);
+      ctx.strokeStyle = 'rgba(58,106,154,0.80)';
+      ctx.lineWidth   = Math.max(0.3, 0.6 * s);
       ctx.beginPath();
       ctx.moveTo(px + WW * 0.5, py); ctx.lineTo(px + WW * 0.5, py + WH);
       ctx.stroke();
-      // Reflection highlight
-      ctx.fillStyle = 'rgba(232,244,255,0.55)';
-      ctx.fillRect(px + 1 * s, py + 0.8 * s, WW * 0.55, 1.8 * s);
+      // Reflection highlight — strong white streak
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillRect(px + 0.8 * s, py + 0.7 * s, WW * 0.60, 2.2 * s);
     }
     // Pilot helmet
     const PHX = WX + 2 * WW + WGAP + WGAP * 0.5;
@@ -649,21 +662,37 @@ export class Helicopter {
     ctx.beginPath();
     ctx.arc(cx, cy - 22 * s, 63 * s, 0, Math.PI * 2);
     ctx.stroke();
-    // Ghost blade lines at three angles
-    const bladeAngles = [0, Math.PI / 6, Math.PI / 3];
-    const bladeAlphas = [0.65, 0.30, 0.14];
-    for (let b = 0; b < 3; b++) {
-      const a  = bladeAngles[b];
+    // Motion-blur ghost traces
+    const ghostAngles = [Math.PI / 8, Math.PI / 5, Math.PI / 3.2, Math.PI / 2.4];
+    const ghostAlphas = [0.10, 0.07, 0.05, 0.03];
+    for (let b = 0; b < 4; b++) {
+      const a  = ghostAngles[b];
       const bx = Math.cos(a) * 62 * s;
       const by = Math.sin(a) * 62 * s;
-      ctx.globalAlpha = bladeAlphas[b];
+      ctx.globalAlpha = ghostAlphas[b];
       ctx.strokeStyle = '#5a9acc';
-      ctx.lineWidth   = Math.max(1, 2.5 * s);
+      ctx.lineWidth   = Math.max(1, 2.2 * s);
       ctx.beginPath();
       ctx.moveTo(cx - bx, cy - 22 * s - by);
       ctx.lineTo(cx + bx, cy - 22 * s + by);
       ctx.stroke();
     }
+    // Bright current blade at 0°
+    ctx.globalAlpha = 0.82;
+    ctx.strokeStyle = '#c8e0f8';
+    ctx.lineWidth   = Math.max(1.5, 2.8 * s);
+    ctx.beginPath();
+    ctx.moveTo(cx - 62 * s, cy - 22 * s);
+    ctx.lineTo(cx + 62 * s, cy - 22 * s);
+    ctx.stroke();
+    // Leading-edge specular
+    ctx.globalAlpha = 0.30;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth   = Math.max(0.5, 1.0 * s);
+    ctx.beginPath();
+    ctx.moveTo(cx - 62 * s, cy - 22 * s);
+    ctx.lineTo(cx + 62 * s, cy - 22 * s);
+    ctx.stroke();
     ctx.globalAlpha = 1;
 
     // ── Landing skids ─────────────────────────────────────────────────────────
