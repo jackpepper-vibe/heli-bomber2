@@ -256,22 +256,34 @@ export class BackgroundSystem {
     base.addColorStop(1.00, '#aad4ec');
     ctx.fillStyle = base; ctx.fillRect(0, 0, W, GROUND_Y);
 
-    const SX = 660, SY = 118;
-    const corona = ctx.createRadialGradient(SX, SY, 18, SX, SY, 390);
-    corona.addColorStop(0.00, 'rgba(255,244,170,0.32)'); corona.addColorStop(0.14, 'rgba(255,228,130,0.20)');
-    corona.addColorStop(0.30, 'rgba(255,205,80,0.11)');  corona.addColorStop(0.52, 'rgba(255,180,55,0.05)');
-    corona.addColorStop(1.00, 'rgba(255,150,30,0.00)');
+    // Sun corona baked into sky at new top-right position
+    const SX = 752, SY = 66;
+    const corona = ctx.createRadialGradient(SX, SY, 14, SX, SY, 340);
+    corona.addColorStop(0.00, 'rgba(255,248,180,0.38)'); corona.addColorStop(0.12, 'rgba(255,230,120,0.24)');
+    corona.addColorStop(0.28, 'rgba(255,208,70,0.13)');  corona.addColorStop(0.50, 'rgba(255,184,45,0.06)');
+    corona.addColorStop(1.00, 'rgba(255,150,20,0.00)');
     ctx.fillStyle = corona; ctx.fillRect(0, 0, W, GROUND_Y);
 
+    // Diagonal warm ray-light gradient — scattering along god-ray direction (top-right → bottom-left)
+    const rayLight = ctx.createLinearGradient(SX, SY, 0, GROUND_Y);
+    rayLight.addColorStop(0.00, 'rgba(255,230,130,0.16)');
+    rayLight.addColorStop(0.30, 'rgba(240,210,100,0.10)');
+    rayLight.addColorStop(0.62, 'rgba(220,195,90,0.05)');
+    rayLight.addColorStop(1.00, 'rgba(200,180,80,0.00)');
+    ctx.fillStyle = rayLight; ctx.fillRect(0, 0, W, GROUND_Y);
+
+    // Primary haze bands — doubled density for rich atmospheric scattering
     const hazeBands = [
-      { y:  36, h: 24, c: 'rgba(38,88,180,0.062)'  }, { y:  72, h: 28, c: 'rgba(54,110,200,0.052)'  },
-      { y: 112, h: 26, c: 'rgba(74,140,218,0.046)'  }, { y: 152, h: 30, c: 'rgba(96,164,228,0.044)'  },
-      { y: 196, h: 32, c: 'rgba(122,186,236,0.042)' }, { y: 244, h: 28, c: 'rgba(148,202,238,0.040)' },
-      { y: 292, h: 26, c: 'rgba(168,212,240,0.044)' }, { y: 342, h: 30, c: 'rgba(188,218,242,0.050)' },
-      { y: 394, h: 26, c: 'rgba(206,226,244,0.058)' }, { y: 442, h: 22, c: 'rgba(220,232,244,0.068)' },
+      { y:  30, h: 22, c: 'rgba(38,88,180,0.118)'  }, { y:  58, h: 20, c: 'rgba(46,100,195,0.098)'  },
+      { y:  84, h: 26, c: 'rgba(54,110,200,0.105)'  }, { y: 115, h: 24, c: 'rgba(66,128,212,0.090)'  },
+      { y: 146, h: 28, c: 'rgba(80,148,220,0.085)'  }, { y: 178, h: 26, c: 'rgba(96,164,228,0.082)'  },
+      { y: 210, h: 30, c: 'rgba(114,180,232,0.078)' }, { y: 246, h: 28, c: 'rgba(134,196,236,0.074)' },
+      { y: 280, h: 26, c: 'rgba(154,208,238,0.082)' }, { y: 314, h: 30, c: 'rgba(174,216,240,0.092)' },
+      { y: 350, h: 28, c: 'rgba(192,222,242,0.102)' }, { y: 386, h: 26, c: 'rgba(208,228,244,0.118)' },
+      { y: 420, h: 24, c: 'rgba(220,234,244,0.135)' }, { y: 450, h: 22, c: 'rgba(230,238,246,0.152)' },
     ];
     for (let i = 0; i < hazeBands.length; i++) {
-      const b = hazeBands[i], yOff = Math.sin(i * 0.83) * 3;
+      const b = hazeBands[i], yOff = Math.sin(i * 0.83) * 4;
       const bg = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
       bg.addColorStop(0, 'rgba(0,0,0,0)'); bg.addColorStop(0.5, b.c); bg.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = bg;
@@ -281,22 +293,46 @@ export class BackgroundSystem {
       ctx.closePath(); ctx.fill();
     }
 
-    const horizGlow = ctx.createLinearGradient(0, GROUND_Y - 95, 0, GROUND_Y);
-    horizGlow.addColorStop(0.0, 'rgba(215,200,120,0.00)'); horizGlow.addColorStop(0.4, 'rgba(215,200,120,0.06)');
-    horizGlow.addColorStop(0.75, 'rgba(240,215,110,0.11)'); horizGlow.addColorStop(1.0, 'rgba(255,222,90,0.18)');
-    ctx.fillStyle = horizGlow; ctx.fillRect(0, GROUND_Y - 95, W, 95);
+    // Fine atmospheric moisture/dust texture bands — thin, tightly packed
+    for (let fi = 0; fi < 24; fi++) {
+      const fy  = 140 + fi * 14 + Math.sin(fi * 2.1) * 7;
+      const fh  = 7 + Math.abs(Math.sin(fi * 1.7)) * 5;
+      const fa  = 0.024 + Math.sin(fi * 1.3) * 0.012;
+      const wc  = fi % 3 === 0
+        ? `rgba(205,215,240,${fa.toFixed(3)})`
+        : fi % 3 === 1
+        ? `rgba(225,205,175,${fa.toFixed(3)})`
+        : `rgba(215,210,195,${fa.toFixed(3)})`;
+      const fg  = ctx.createLinearGradient(0, fy, 0, fy + fh);
+      fg.addColorStop(0, 'rgba(0,0,0,0)'); fg.addColorStop(0.5, wc); fg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = fg; ctx.fillRect(0, fy, W, fh);
+    }
+
+    // Warm horizon glow — strengthened
+    const horizGlow = ctx.createLinearGradient(0, GROUND_Y - 120, 0, GROUND_Y);
+    horizGlow.addColorStop(0.00, 'rgba(215,195,110,0.00)'); horizGlow.addColorStop(0.35, 'rgba(228,208,110,0.09)');
+    horizGlow.addColorStop(0.65, 'rgba(242,218,108,0.16)'); horizGlow.addColorStop(1.00, 'rgba(255,225,88,0.26)');
+    ctx.fillStyle = horizGlow; ctx.fillRect(0, GROUND_Y - 120, W, 120);
+
+    // Right-side warm glow (near sun side of horizon)
+    const rightGlow = ctx.createLinearGradient(W, 0, W - 280, 0);
+    rightGlow.addColorStop(0.00, 'rgba(255,220,100,0.10)');
+    rightGlow.addColorStop(0.50, 'rgba(245,210,95,0.05)');
+    rightGlow.addColorStop(1.00, 'rgba(0,0,0,0.00)');
+    ctx.fillStyle = rightGlow; ctx.fillRect(W - 280, 0, 280, GROUND_Y);
 
     const leftVign = ctx.createLinearGradient(0, 0, 180, 0);
-    leftVign.addColorStop(0, 'rgba(8,16,38,0.07)'); leftVign.addColorStop(1, 'rgba(0,0,0,0)');
+    leftVign.addColorStop(0, 'rgba(8,16,38,0.09)'); leftVign.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = leftVign; ctx.fillRect(0, 0, W, GROUND_Y);
 
-    for (let i = 0; i < 16; i++) {
-      const sx = 40 + (i / 16) * (W - 80) + Math.sin(i * 2.1) * 28;
-      const sw = 18 + Math.abs(Math.sin(i * 1.4)) * 22;
-      const al = 0.008 + Math.sin(i * 1.73) * 0.004;
+    // Vertical atmospheric turbulence streaks
+    for (let i = 0; i < 18; i++) {
+      const sx = 40 + (i / 18) * (W - 80) + Math.sin(i * 2.1) * 28;
+      const sw = 16 + Math.abs(Math.sin(i * 1.4)) * 20;
+      const al = 0.010 + Math.sin(i * 1.73) * 0.005;
       const sg = ctx.createLinearGradient(sx, 15, sx + 6, GROUND_Y - 45);
       sg.addColorStop(0.0, 'rgba(200,220,255,0)');
-      sg.addColorStop(0.3, `rgba(200,220,255,${(al + 0.004).toFixed(4)})`);
+      sg.addColorStop(0.3, `rgba(200,220,255,${(al + 0.005).toFixed(4)})`);
       sg.addColorStop(0.7, `rgba(200,220,255,${al.toFixed(4)})`);
       sg.addColorStop(1.0, 'rgba(200,220,255,0)');
       ctx.fillStyle = sg; ctx.fillRect(sx - sw * 0.5, 15, sw, GROUND_Y - 60);
@@ -443,35 +479,77 @@ export class BackgroundSystem {
 
   private _drawDaySky(): void {
     if (!this.skyBaked) this._bakeDaySky();
-    this.daySkySprite.visible = true; this.skyGfx.clear();
+    this.daySkySprite.visible = true;
+    const g = this.skyGfx; g.clear();
+    const now = Date.now() * 0.000014;
+    for (let i = 0; i < 10; i++) {
+      const yBase = 190 + i * 28 + Math.sin(i * 1.71 + now) * 4;
+      const bh    = 14  + Math.sin(i * 2.30) * 5;
+      const tilt  = Math.sin(i * 0.9 + now * 0.4) * 3;
+      const al    = 0.022 + Math.sin(i * 1.43 + now * 0.7) * 0.008;
+      const col   = i % 2 === 0 ? 0xd0c8a8 : 0xe8dab0;
+      g.poly([-12, yBase + tilt, W + 12, yBase - tilt,
+              W + 12, yBase + bh - tilt, -12, yBase + bh + tilt])
+       .fill({ color: col, alpha: al });
+    }
+    const horizA = 0.042 + 0.014 * Math.sin(now * 2.1);
+    g.rect(0, GROUND_Y - 110, W, 110).fill({ color: 0xf4d880, alpha: horizA });
   }
 
   private _drawSun(): void {
     const g = this.starGfx; g.clear();
-    const now = Date.now(); const sx = 660, sy = 118;
-    g.circle(sx, sy, 220).fill({ color: 0xfff4c0, alpha: 0.018 });
-    g.circle(sx, sy, 170).fill({ color: 0xffeea0, alpha: 0.032 });
-    for (let i = 0; i < 16; i++) {
-      const a   = (i / 16) * Math.PI * 2 + now * 0.000028;
-      const len = 280 + 100 * Math.sin(now * 0.0007 + i * 0.78);
-      const hw  = 0.046 + 0.012 * Math.sin(now * 0.0011 + i * 2.1);
-      const x1  = sx + Math.cos(a - hw) * 38, y1 = sy + Math.sin(a - hw) * 38;
-      const x2  = sx + Math.cos(a + hw) * 38, y2 = sy + Math.sin(a + hw) * 38;
-      const x3  = sx + Math.cos(a + hw) * len, y3 = sy + Math.sin(a + hw) * len;
-      const x4  = sx + Math.cos(a - hw) * len, y4 = sy + Math.sin(a - hw) * len;
-      const ba  = 0.048 + 0.022 * Math.sin(now * 0.0013 + i * 1.3);
-      const af  = 0.50  + 0.50  * Math.sin(a + now * 0.00005);
-      g.poly([x1, y1, x2, y2, x3, y3, x4, y4]).fill({ color: 0xfff0a0, alpha: ba * af });
+    const sx = 752, sy = 66;
+    this._drawGodRays(g, sx, sy);
+    // Small intense disc — tight concentric halos
+    g.circle(sx, sy, 62).fill({ color: 0xfff4c0, alpha: 0.04 });
+    g.circle(sx, sy, 44).fill({ color: 0xffeea0, alpha: 0.08 });
+    g.circle(sx, sy, 30).fill({ color: 0xffe880, alpha: 0.14 });
+    g.circle(sx, sy, 20).fill({ color: 0xfff0a0, alpha: 0.40 });
+    g.circle(sx, sy, 14).fill({ color: 0xfffacc, alpha: 0.80 });
+    g.circle(sx, sy,  9).fill({ color: 0xfffde8, alpha: 0.96 });
+    g.circle(sx, sy,  5).fill({ color: 0xffffff, alpha: 1.00 });
+    g.rect(sx - 180, sy - 0.8, 360, 1.6).fill({ color: 0xffffff, alpha: 0.06 });
+  }
+
+  private _drawGodRays(g: PIXI.Graphics, sx: number, sy: number): void {
+    const now = Date.now();
+    const LEN = 980;
+    const DEG = Math.PI / 180;
+    type RayDef = [number, number, number, number];
+    const rays: RayDef[] = [
+      [ 87, 1.6, 0.105, 0xfff4c0], [ 94, 0.8, 0.130, 0xffd860],
+      [101, 2.2, 0.076, 0xffea80], [108, 0.9, 0.118, 0xffc840],
+      [116, 1.4, 0.090, 0xffd060], [122, 0.6, 0.145, 0xfff0a0],
+      [129, 1.8, 0.068, 0xffe880], [135, 0.7, 0.112, 0xffd050],
+      [141, 2.0, 0.058, 0xffec90], [147, 0.9, 0.098, 0xffc030],
+      [153, 1.3, 0.072, 0xffd860], [159, 0.6, 0.120, 0xffe090],
+      [165, 1.5, 0.052, 0xffd060], [171, 0.8, 0.082, 0xffcc40],
+    ];
+    for (const [ang, hw, alpha, col] of rays) {
+      const wobble = 0.4 * Math.sin(now * 0.00018 + ang * 0.17);
+      const a  = (ang + wobble) * DEG;
+      const aw = hw * DEG;
+      // Outer halo
+      g.poly([sx, sy,
+              sx + Math.cos(a - aw * 3.5) * LEN, sy + Math.sin(a - aw * 3.5) * LEN,
+              sx + Math.cos(a + aw * 3.5) * LEN, sy + Math.sin(a + aw * 3.5) * LEN])
+       .fill({ color: col, alpha: alpha * 0.28 });
+      // Main body
+      g.poly([sx, sy,
+              sx + Math.cos(a - aw) * LEN, sy + Math.sin(a - aw) * LEN,
+              sx + Math.cos(a + aw) * LEN, sy + Math.sin(a + aw) * LEN])
+       .fill({ color: col, alpha });
+      // Inner bright core
+      const cw = aw * 0.35;
+      g.poly([sx, sy,
+              sx + Math.cos(a - cw) * LEN, sy + Math.sin(a - cw) * LEN,
+              sx + Math.cos(a + cw) * LEN, sy + Math.sin(a + cw) * LEN])
+       .fill({ color: 0xfffff0, alpha: alpha * 0.55 });
     }
-    g.rect(0, sy - 1, W, 2).fill({ color: 0xffe880, alpha: 0.04 });
-    g.circle(sx, sy, 140).fill({ color: 0xfff8e0, alpha: 0.032 });
-    g.circle(sx, sy, 108).fill({ color: 0xffef98, alpha: 0.065 });
-    g.circle(sx, sy,  80).fill({ color: 0xffe860, alpha: 0.110 });
-    g.circle(sx, sy,  58).fill({ color: 0xfff0a0, alpha: 0.220 });
-    g.circle(sx, sy,  42).fill({ color: 0xfffacc, alpha: 0.500 });
-    g.circle(sx, sy,  30).fill({ color: 0xfffde8, alpha: 0.94  });
-    g.circle(sx, sy,  22).fill({ color: 0xffffff, alpha: 0.90  });
-    g.circle(sx, sy,  12).fill({ color: 0xffffff, alpha: 0.98  });
+    // Near-sun atmospheric scatter
+    g.circle(sx, sy, 180).fill({ color: 0xfff8d0, alpha: 0.025 });
+    g.circle(sx, sy, 120).fill({ color: 0xfff0a0, alpha: 0.045 });
+    g.circle(sx, sy,  80).fill({ color: 0xffe880, alpha: 0.065 });
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
