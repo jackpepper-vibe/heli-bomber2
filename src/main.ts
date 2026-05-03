@@ -47,9 +47,12 @@ async function main(): Promise<void> {
   const menu = new MenuScene(leaderboard);
   await menu.init();
 
-  // backgrounds2.png is clean — load raw; sprite sheet has checker pattern stripped
-  const [bgTex, heliTex] = await Promise.all([
-    loadTexture('backgrounds/backgrounds2.png').catch(() => null),
+  // Load four separate background layers and the helicopter sprite sheet
+  const [skyTex, mountainsTex, forestTex, groundTex, heliTex] = await Promise.all([
+    loadTexture('backgrounds/sky.png').catch(() => null),
+    loadTexture('backgrounds/mountains.png').catch(() => null),
+    loadTexture('backgrounds/forest.png').catch(() => null),
+    loadTexture('backgrounds/ground.png').catch(() => null),
     loadTransparentTexture('sprites/sprite-sheet1.png').catch(() => null),
   ]);
 
@@ -96,7 +99,8 @@ async function main(): Promise<void> {
     game.container.filters = [colorFilter];
     app.stage.addChild(game.container);
 
-    if (bgTex)             game.initParallax(bgTex);
+    if (skyTex && mountainsTex && forestTex && groundTex)
+      game.initParallax(skyTex, mountainsTex, forestTex, groundTex);
     if (heliFrames.length) game.initHeliSprites(heliFrames);
 
     hud.show();

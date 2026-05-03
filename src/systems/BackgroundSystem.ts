@@ -91,10 +91,10 @@ export class BackgroundSystem {
     );
   }
 
-  /** Wire in the backgrounds.png texture to activate sprite-based parallax. */
-  initParallax(tex: PIXI.Texture): void {
+  /** Wire in the four layer textures to activate sprite-based parallax. */
+  initParallax(sky: PIXI.Texture, mountains: PIXI.Texture, forest: PIXI.Texture, ground: PIXI.Texture): void {
     this.parallax = new ParallaxBackground();
-    this.parallax.init(tex);
+    this.parallax.init(sky, mountains, forest, ground);
     this.parallaxCont.addChild(this.parallax.container);
   }
 

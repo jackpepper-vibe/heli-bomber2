@@ -194,7 +194,9 @@ export class GameScene {
 
   async init(): Promise<void> { /* initialisation done in start() */ }
 
-  initParallax(tex: PIXI.Texture): void    { this.bg.initParallax(tex); }
+  initParallax(sky: PIXI.Texture, mountains: PIXI.Texture, forest: PIXI.Texture, ground: PIXI.Texture): void {
+    this.bg.initParallax(sky, mountains, forest, ground);
+  }
   initHeliSprites(frames: PIXI.Texture[]): void { this.heli.setSprites(frames); }
 
   start(playerName: string): void {
