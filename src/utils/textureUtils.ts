@@ -42,7 +42,8 @@ export async function loadTransparentTexture(url: string): Promise<PIXI.Texture>
     const r = d[i], g = d[i + 1], b = d[i + 2];
     const avg = (r + g + b) / 3;
     const mx  = Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b));
-    if (mx < 16 && ((avg >= 179 && avg <= 203) || (avg >= 213 && avg <= 233))) {
+    // Strip near-achromatic pixels across the full checker luminance range (150-240)
+    if (mx < 16 && avg >= 150 && avg <= 240) {
       d[i + 3] = 0;
     }
   }

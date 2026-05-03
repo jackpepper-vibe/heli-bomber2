@@ -8,7 +8,7 @@ import { HUD } from './ui/HUD';
 import { LevelTransition } from './ui/LevelTransition';
 import { MenuScene } from './scenes/MenuScene';
 import { GameScene } from './scenes/GameScene';
-import { loadTexture, loadTransparentTexture, sliceTexture } from './utils/textureUtils';
+import { loadTransparentTexture, sliceTexture } from './utils/textureUtils';
 
 function createVignetteTexture(): PIXI.Texture {
   const canvas = document.createElement('canvas');
@@ -47,12 +47,12 @@ async function main(): Promise<void> {
   const menu = new MenuScene(leaderboard);
   await menu.init();
 
-  // Load four separate background layers and the helicopter sprite sheet
+  // Load four separate background layers — checker transparency stripped on all
   const [skyTex, mountainsTex, forestTex, groundTex, heliTex] = await Promise.all([
-    loadTexture('backgrounds/sky.png').catch(() => null),
-    loadTexture('backgrounds/mountains.png').catch(() => null),
-    loadTexture('backgrounds/forest.png').catch(() => null),
-    loadTexture('backgrounds/ground.png').catch(() => null),
+    loadTransparentTexture('backgrounds/sky.png').catch(() => null),
+    loadTransparentTexture('backgrounds/mountains.png').catch(() => null),
+    loadTransparentTexture('backgrounds/forest.png').catch(() => null),
+    loadTransparentTexture('backgrounds/ground.png').catch(() => null),
     loadTransparentTexture('sprites/sprite-sheet1.png').catch(() => null),
   ]);
 
