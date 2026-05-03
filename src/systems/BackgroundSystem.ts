@@ -6,6 +6,7 @@ import {
   COL_HUD,
 } from '../utils/constants';
 import { blinkMs } from '../utils/math';
+import { ParallaxBackground } from './ParallaxBackground';
 
 interface Star         { x: number; y: number; r: number; phase: number; layer: number; }
 interface Cloud        { x: number; y: number; w: number; h: number; alpha: number; speed: number; }
@@ -38,6 +39,10 @@ export class BackgroundSystem {
   private skyBaked    = false;
   private groundBaked = false;
 
+  // Sprite-based parallax background (backgrounds.png) — replaces code-drawn day mode
+  private readonly parallaxCont: PIXI.Container;
+  private parallax: ParallaxBackground | null = null;
+
   private stars:         Star[]         = [];
   private clouds:        Cloud[]        = [];
   private bgCity:        BgBuilding[]   = [];
@@ -65,7 +70,12 @@ export class BackgroundSystem {
     this.dayGroundSprite.visible = false;
     this.dayGroundSprite.y = GROUND_SPRITE_Y;
 
+    // Parallax container sits at the very bottom of the day-mode layer stack
+    this.parallaxCont = new PIXI.Container();
+    this.parallaxCont.visible = false;
+
     this.container.addChild(
+      this.parallaxCont,    // sprite parallax — shown in day mode when ready
       this.daySkySprite,
       this.skyGfx,
       this.starGfx,
@@ -79,6 +89,13 @@ export class BackgroundSystem {
       this.detailGfx,
       this.foreGfx,
     );
+  }
+
+  /** Wire in the backgrounds.png texture to activate sprite-based parallax. */
+  initParallax(tex: PIXI.Texture): void {
+    this.parallax = new ParallaxBackground();
+    this.parallax.init(tex);
+    this.parallaxCont.addChild(this.parallax.container);
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────────
@@ -351,6 +368,7 @@ export class BackgroundSystem {
 
   update(spd: number): void {
     this.bgScrollX += spd;
+    this.parallax?.update(spd);
     for (let i = 0; i < this.clouds.length; i++) {
       const cl = this.clouds[i];
       cl.x -= spd * cl.speed;
@@ -388,22 +406,46 @@ export class BackgroundSystem {
 
   draw(showGround: boolean, showSea = false, daytime = false, heliX = -1, heliY = -1): void {
     if (daytime) {
-      this._drawDaySky();
-      this._drawSun();
-      this._drawDayMountains();
-      this._drawForestTreelines();
-      this._drawDayClouds();
-      this._drawDayBirds();
-      if (showGround) {
-        this._drawDayGround();
-        this._drawGroundDetails(true);
-        this._drawHeliShadow(heliX, heliY);
-      } else {
+      if (this.parallax) {
+        // ── Sprite-based parallax day mode ────────────────────────────────────
+        this.parallaxCont.visible    = true;
+        this.daySkySprite.visible    = false;
         this.dayGroundSprite.visible = false;
-        this.groundGfx.clear();
+        this.skyGfx.clear();
+        this.mountainGfx.clear();
+        this.hillGfx.clear();
+        this._drawDayClouds();
+        this._drawDayBirds();
+        if (showGround) {
+          this._drawGroundDetails(true);
+          this._drawHeliShadow(heliX, heliY);
+        } else {
+          this.groundGfx.clear();
+          this.shadowGfx.clear();
+          this.foreGfx.clear();
+        }
+        this._drawPowerLines(true);
+      } else {
+        // ── Fallback: code-drawn day mode ─────────────────────────────────────
+        this.parallaxCont.visible = false;
+        this._drawDaySky();
+        this._drawSun();
+        this._drawDayMountains();
+        this._drawForestTreelines();
+        this._drawDayClouds();
+        this._drawDayBirds();
+        if (showGround) {
+          this._drawDayGround();
+          this._drawGroundDetails(true);
+          this._drawHeliShadow(heliX, heliY);
+        } else {
+          this.dayGroundSprite.visible = false;
+          this.groundGfx.clear();
+        }
+        this._drawPowerLines(true);
       }
-      this._drawPowerLines(true);
     } else {
+      this.parallaxCont.visible    = false;
       this.daySkySprite.visible    = false;
       this.dayGroundSprite.visible = false;
       this.hillGfx.clear();

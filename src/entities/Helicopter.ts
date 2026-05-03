@@ -14,12 +14,36 @@ export class Helicopter {
   vx = 0;
   vy = 0;
   private rotorA = 0;
-  readonly gfx: PIXI.Graphics;
+  readonly gfx:             PIXI.Container;
+  private readonly vectorGfx:  PIXI.Graphics;
+  private readonly bgGfx:      PIXI.Graphics;  // rotor disc + downwash — behind sprite
+  private readonly fxGfx:      PIXI.Graphics;  // exhaust + nav lights — in front of sprite
+  private bodySprite:    PIXI.Sprite   | null = null;
+  private frameTextures: PIXI.Texture[]       = [];
   model: HeliModel;
 
   constructor(model: HeliModel) {
-    this.model = model;
-    this.gfx = new PIXI.Graphics();
+    this.model      = model;
+    this.gfx        = new PIXI.Container();
+    this.vectorGfx  = new PIXI.Graphics();
+    this.bgGfx      = new PIXI.Graphics();
+    this.fxGfx      = new PIXI.Graphics();
+    this.gfx.addChild(this.vectorGfx);
+  }
+
+  /** Switch to sprite-based rendering using 3 pre-sliced frame textures. */
+  setSprites(frames: PIXI.Texture[]): void {
+    if (frames.length < 3) return;
+    this.frameTextures     = frames;
+    this.vectorGfx.visible = false;
+
+    this.bodySprite = new PIXI.Sprite(frames[0]);
+    this.bodySprite.anchor.set(0.45, 0.60);
+    this.bodySprite.scale.set(0.736 * this.model.scale);
+
+    this.gfx.addChild(this.bgGfx);
+    this.gfx.addChild(this.bodySprite);
+    this.gfx.addChild(this.fxGfx);
   }
 
   applyIntent(intent: Intent, dt = 1): void {
@@ -49,9 +73,53 @@ export class Helicopter {
   }
 
   draw(): void {
-    const g = this.gfx;
-    g.clear();
-    this._drawModel(g, this.x, this.y, this.model.scale, this.rotorA);
+    if (this.bodySprite) {
+      this._drawSprite();
+    } else {
+      this.vectorGfx.clear();
+      this._drawModel(this.vectorGfx, this.x, this.y, this.model.scale, this.rotorA);
+    }
+  }
+
+  private _drawSprite(): void {
+    const fi = Math.floor(this.rotorA * 1.5) % 3;
+    this.bodySprite!.texture = this.frameTextures[fi];
+    this.bodySprite!.x = this.x;
+    this.bodySprite!.y = this.y;
+
+    const cx   = this.x;
+    const cy   = this.y;
+    const S    = this.model.scale * 2;
+    const now  = Date.now();
+    const beat = Math.sin(now * 0.003);
+
+    const bg = this.bgGfx;
+    bg.clear();
+    bg.ellipse(cx, cy + 28 * S, 42 * S, 14 * S).fill({ color: 0x2255aa, alpha: 0.05 + 0.02 * beat });
+    bg.ellipse(cx, cy + 20 * S, 28 * S,  9 * S).fill({ color: 0x4488cc, alpha: 0.07 });
+    bg.circle(cx, cy - 22 * S, 75 * S).fill({ color: COL_HELI_TRIM, alpha: 0.022 });
+    bg.circle(cx, cy - 22 * S, 66 * S).fill({ color: COL_HELI_TRIM, alpha: 0.042 });
+    bg.circle(cx, cy - 22 * S, 63 * S).fill({ color: 0x8ab8d8,      alpha: 0.14  });
+
+    const fx = this.fxGfx;
+    fx.clear();
+    fx.circle(cx - 14 * S, cy - 9 * S, 2.5 * S).fill(0x0a0f18);
+    fx.circle(cx - 14 * S, cy - 9 * S, 2   * S).fill({ color: 0xff6600, alpha: 0.3 + 0.2 * beat });
+    fx.ellipse(cx - 22 * S, cy - 9 * S, 8 * S, 3 * S).fill({ color: 0xff8800, alpha: 0.06 + 0.04 * beat });
+    const nf = Math.floor(now / 500) % 2 === 0;
+    if (nf) {
+      fx.circle(cx - 30 * S, cy + 26 * S, 2.5 * S).fill({ color: 0xff2200, alpha: 0.95 });
+      fx.circle(cx - 30 * S, cy + 26 * S, 5   * S).fill({ color: 0xff2200, alpha: 0.18 });
+    }
+    if (Math.floor((now + 250) / 500) % 2 === 0) {
+      fx.circle(cx + 40 * S, cy - 12 * S, 2 * S).fill({ color: 0x44ccff, alpha: 0.9  });
+      fx.circle(cx + 40 * S, cy - 12 * S, 4 * S).fill({ color: 0x44ccff, alpha: 0.15 });
+    }
+    if (Math.floor(now / 150) % 8 === 0) {
+      fx.circle(cx, cy - 32 * S, 3 * S).fill({ color: 0xffffff, alpha: 0.9  });
+      fx.circle(cx, cy - 32 * S, 6 * S).fill({ color: 0xffffff, alpha: 0.15 });
+    }
+    fx.circle(cx - 14 * S, cy - 9 * S, 4 * S).fill({ color: 0xff4400, alpha: 0.04 + 0.02 * beat });
   }
 
   private _drawModel(g: PIXI.Graphics, cx: number, cy: number, s: number, rotA: number): void {

@@ -72,6 +72,7 @@ export class GameScene {
   private readonly balloonRenderer: BalloonRenderer;
   private readonly mineRenderer: MineRenderer;
   private readonly shipRenderer: ShipRenderer;
+  private readonly overlayGfx: PIXI.Graphics; // shield aura + fanfare flash
 
   // Overlay text for crash/fanfare
   private readonly overlayText: PIXI.Text;
@@ -162,6 +163,7 @@ export class GameScene {
     this.balloonRenderer = new BalloonRenderer();
     this.mineRenderer    = new MineRenderer();
     this.shipRenderer    = new ShipRenderer();
+    this.overlayGfx      = new PIXI.Graphics();
 
     this.overlayText = new PIXI.Text({
       text: '',
@@ -185,11 +187,15 @@ export class GameScene {
       this.cave.container,
       this.particles.container,
       this.heli.gfx,
+      this.overlayGfx,
     );
     this.uiContainer.addChild(this.storm.container, this.overlayText);
   }
 
   async init(): Promise<void> { /* initialisation done in start() */ }
+
+  initParallax(tex: PIXI.Texture): void    { this.bg.initParallax(tex); }
+  initHeliSprites(frames: PIXI.Texture[]): void { this.heli.setSprites(frames); }
 
   start(playerName: string): void {
     this.score = 0;
@@ -861,12 +867,13 @@ export class GameScene {
     // Particles
     this.particles.draw();
 
-    // Shield aura
+    // Shield aura + per-frame overlay clear
+    this.overlayGfx.clear();
     if (this.powers.shield > 0) {
-      const g = this.heli.gfx;
       const pulse = 0.55 + 0.25 * Math.sin(Date.now() * 0.012);
-      g.circle(this.heli.x, this.heli.y, 40 * this.heli.model.scale)
-       .stroke({ width: 2, color: 0x66ddff, alpha: pulse });
+      this.overlayGfx
+        .circle(this.heli.x, this.heli.y, 40 * this.heli.model.scale)
+        .stroke({ width: 2, color: 0x66ddff, alpha: pulse });
     }
 
     // Heli
@@ -928,8 +935,7 @@ export class GameScene {
   private _drawOverlays(): void {
     if (this.fanfareFlash > 0) {
       const alpha = (this.fanfareFlash / 18) * 0.45;
-      const g = this.heli.gfx;
-      g.rect(0, 0, W, H).fill({ color: 0xaaffcc, alpha });
+      this.overlayGfx.rect(0, 0, W, H).fill({ color: 0xaaffcc, alpha });
     }
     // Cave crash overlay handled by CaveSystem itself
     // Sea/mine crash overlays: show via overlayText

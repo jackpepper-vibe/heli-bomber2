@@ -8,6 +8,7 @@ import { HUD } from './ui/HUD';
 import { LevelTransition } from './ui/LevelTransition';
 import { MenuScene } from './scenes/MenuScene';
 import { GameScene } from './scenes/GameScene';
+import { loadTransparentTexture, sliceTexture } from './utils/textureUtils';
 
 function createVignetteTexture(): PIXI.Texture {
   const canvas = document.createElement('canvas');
@@ -46,6 +47,19 @@ async function main(): Promise<void> {
   const menu = new MenuScene(leaderboard);
   await menu.init();
 
+  // Load sprite sheets — checker transparency is stripped at runtime
+  const [bgTex, heliTex] = await Promise.all([
+    loadTransparentTexture('backgrounds/backgrounds.png').catch(() => null),
+    loadTransparentTexture('sprites/sprite-sheet1.png').catch(() => null),
+  ]);
+
+  // Helicopter frame sub-textures: 3 frames across the top row of sprite-sheet1.png
+  const heliFrames: PIXI.Texture[] = heliTex ? [
+    sliceTexture(heliTex,   0, 0, 360, 310),
+    sliceTexture(heliTex, 380, 0, 280, 310),
+    sliceTexture(heliTex, 700, 0, 300, 310),
+  ] : [];
+
   // Post-processing — subtle contrast + saturation boost on game world
   const colorFilter = new PIXI.ColorMatrixFilter();
   colorFilter.contrast(0.12, false);
@@ -81,6 +95,9 @@ async function main(): Promise<void> {
     game.setOnGameOver(returnToMenu);
     game.container.filters = [colorFilter];
     app.stage.addChild(game.container);
+
+    if (bgTex)             game.initParallax(bgTex);
+    if (heliFrames.length) game.initHeliSprites(heliFrames);
 
     hud.show();
     game.start(menu.playerName);
