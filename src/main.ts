@@ -8,7 +8,7 @@ import { HUD } from './ui/HUD';
 import { LevelTransition } from './ui/LevelTransition';
 import { MenuScene } from './scenes/MenuScene';
 import { GameScene } from './scenes/GameScene';
-import { loadTransparentTexture, sliceTexture } from './utils/textureUtils';
+import { loadTexture, loadTransparentTexture, sliceTexture } from './utils/textureUtils';
 
 function createVignetteTexture(): PIXI.Texture {
   const canvas = document.createElement('canvas');
@@ -47,9 +47,9 @@ async function main(): Promise<void> {
   const menu = new MenuScene(leaderboard);
   await menu.init();
 
-  // backgrounds2.png is a clean image — load directly; sprite sheet has checker transparency stripped
+  // backgrounds2.png is clean — load raw; sprite sheet has checker pattern stripped
   const [bgTex, heliTex] = await Promise.all([
-    PIXI.Assets.load<PIXI.Texture>('backgrounds/backgrounds2.png').catch(() => null),
+    loadTexture('backgrounds/backgrounds2.png').catch(() => null),
     loadTransparentTexture('sprites/sprite-sheet1.png').catch(() => null),
   ]);
 

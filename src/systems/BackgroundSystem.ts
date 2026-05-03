@@ -417,6 +417,7 @@ export class BackgroundSystem {
         this.hillGfx.clear();
         this.cloudGfx.clear();
         this.bgCityGfx.clear();
+        this.groundGfx.clear();
         if (showGround) {
           this._drawGroundDetails(true);
           this._drawHeliShadow(heliX, heliY);
