@@ -832,8 +832,9 @@ export class GameScene {
       this.bg.drawFinishLine(this.finishLineX);
     }
 
-    // Buildings
-    if (isCityLevel) this.buildingRenderer.draw(this.buildings);
+    // Level 1 uses parallax background for scenery; suppress vector buildings there
+    if (isCityLevel && lv !== 1) this.buildingRenderer.draw(this.buildings);
+    else                          this.buildingRenderer.draw([]);
 
     // Ships — always call so g.clear() runs; pass empty array when inactive
     this.shipRenderer.draw(isSeaLevel ? this.ships : [], isSeaLevel ? this.seaMissiles : []);

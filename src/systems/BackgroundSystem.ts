@@ -414,8 +414,9 @@ export class BackgroundSystem {
         this.skyGfx.clear();
         this.mountainGfx.clear();
         this.hillGfx.clear();
-        this._drawDayClouds();
-        this._drawDayBirds();
+        // Sky comes entirely from the parallax image — no code-drawn clouds or birds
+        this.cloudGfx.clear();
+        this.bgCityGfx.clear();
         if (showGround) {
           this._drawGroundDetails(true);
           this._drawHeliShadow(heliX, heliY);
