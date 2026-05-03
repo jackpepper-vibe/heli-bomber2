@@ -4,40 +4,36 @@ import { sliceTexture } from '../utils/textureUtils';
 
 // ── Source crop rectangles in backgrounds.png (1384 × 752) ───────────────────
 //
-//  Each section has a label row (checker-stripped to transparent) above it,
-//  identified by decoding actual PNG pixel values.
+//  Coordinates measured directly on the 752 px file.
+//  Each crop window sits between the label strips to avoid reference text.
 //
-//  Label rows (neutral grays, stripped to transparent, must be excluded):
-//    y=  0– 45  Sky label
-//    y=295–344  Mountain label
-//    y=601–630  Hills label
-//
-//  Content rows (fully opaque, real scene art):
-//    y= 46–294  Sky   — blue gradient with sun and atmosphere
-//    y=345–600  Mountains — dark distant peaks and foothills
-//    y=631–710  Hills/Forest — green rolling hills and trees
-//    y=710–742  Ground strip — dark earth and grass floor
+//    Layer 1 – Sky:          y =  35 → 210   (sh = 175)
+//    Layer 2 – Mountains:    y = 245 → 420   (sh = 175)
+//    Layer 3 – Hills/Forest: y = 455 → 630   (sh = 175)
+//    Layer 4 – Ground:       y = 665 → 752   (sh =  87)
 
 const SRC_W = 1384;
 
 interface LayerCfg {
-  sy:    number;  // source Y start  (first content row, labels excluded)
-  sh:    number;  // source height   (content rows only)
+  sy:    number;  // source Y start
+  sh:    number;  // source height (pixels to crop)
   dispH: number;  // display height in game pixels
   dispY: number;  // display Y (top edge) in game pixels
   speed: number;  // fraction of cumulative scroll (0 = static)
   tiles: number;  // sprite copies for seamless horizontal tiling
 }
 
+// tileW is derived in init() as ceil(SRC_W * dispH / sh) + 1, which preserves
+// the source aspect ratio so the layers are never squashed or smeared.
 const LAYERS: readonly LayerCfg[] = [
-  // Sky — static; fills entire sky viewport (y=0..GROUND_Y)
-  { sy:  46, sh: 248, dispH: GROUND_Y,          dispY: 0,            speed: 0.00, tiles: 1 },
-  // Mountains — 10% parallax; peaks start at y=260 leaving clear sky above
-  { sy: 345, sh: 255, dispH: GROUND_Y - 260,    dispY: 260,          speed: 0.10, tiles: 2 },
-  // Hills/Forest — 40% parallax; low horizon band starting at y=360
-  { sy: 631, sh:  80, dispH: GROUND_Y - 360,    dispY: 360,          speed: 0.40, tiles: 3 },
-  // Ground strip — 100% parallax; tight earth floor beneath GROUND_Y
-  { sy: 710, sh:  32, dispH: H - GROUND_Y + 4,  dispY: GROUND_Y - 2, speed: 1.00, tiles: 4 },
+  // Sky — static; fills full sky viewport y=0..GROUND_Y
+  { sy:  35, sh: 175, dispH: GROUND_Y,          dispY: 0,            speed: 0.00, tiles: 1 },
+  // Mountains — 10% speed; peaks sit from y=260 downward, leaving open sky above
+  { sy: 245, sh: 175, dispH: GROUND_Y - 260,    dispY: 260,          speed: 0.10, tiles: 2 },
+  // Hills/Forest — 40% speed; low horizon band from y=360
+  { sy: 455, sh: 175, dispH: GROUND_Y - 360,    dispY: 360,          speed: 0.40, tiles: 3 },
+  // Ground — 100% speed; earth floor strip below GROUND_Y
+  { sy: 665, sh:  87, dispH: H - GROUND_Y + 4,  dispY: GROUND_Y - 2, speed: 1.00, tiles: 4 },
 ];
 
 export class ParallaxBackground {
