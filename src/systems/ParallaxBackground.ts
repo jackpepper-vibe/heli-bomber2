@@ -2,45 +2,38 @@ import * as PIXI from 'pixi.js';
 import { H, GROUND_Y } from '../utils/constants';
 import { sliceTexture } from '../utils/textureUtils';
 
-// ── Source crop rectangles in backgrounds.png (1384 × 752) ───────────────────
+// ── backgrounds2.png — 4 equal horizontal strips of 256 px each ──────────────
 //
-//  Coordinates measured directly on the 752 px file.
-//  Each crop window sits between the label strips to avoid reference text.
-//
-//    Layer 1 – Sky:          y =  35 → 210   (sh = 175)
-//    Layer 2 – Mountains:    y = 245 → 420   (sh = 175)
-//    Layer 3 – Hills/Forest: y = 455 → 630   (sh = 175)
-//    Layer 4 – Ground:       y = 665 → 752   (sh =  87)
+//   Strip 0 – Sky:          y =   0 → 256
+//   Strip 1 – Mountains:    y = 256 → 512
+//   Strip 2 – Hills/Forest: y = 512 → 768
+//   Strip 3 – Ground:       y = 768 → 1024
 
-const SRC_W = 1384;
+const SRC_SH = 256;  // source height per strip (constant for all layers)
 
 interface LayerCfg {
   sy:    number;  // source Y start
-  sh:    number;  // source height (pixels to crop)
   dispH: number;  // display height in game pixels
   dispY: number;  // display Y (top edge) in game pixels
   speed: number;  // fraction of cumulative scroll (0 = static)
-  tiles: number;  // sprite copies for seamless horizontal tiling
 }
 
-// tileW is derived in init() as ceil(SRC_W * dispH / sh) + 1, which preserves
-// the source aspect ratio so the layers are never squashed or smeared.
 const LAYERS: readonly LayerCfg[] = [
   // Sky — static; fills full sky viewport y=0..GROUND_Y
-  { sy:  35, sh: 175, dispH: GROUND_Y,          dispY: 0,            speed: 0.00, tiles: 1 },
-  // Mountains — 10% speed; peaks sit from y=260 downward, leaving open sky above
-  { sy: 245, sh: 175, dispH: GROUND_Y - 260,    dispY: 260,          speed: 0.10, tiles: 2 },
-  // Hills/Forest — 40% speed; low horizon band from y=360
-  { sy: 455, sh: 175, dispH: GROUND_Y - 360,    dispY: 360,          speed: 0.40, tiles: 3 },
+  { sy:   0, dispH: GROUND_Y,          dispY: 0,            speed: 0.00 },
+  // Mountains — 10% speed; peaks sit from y=260 downward
+  { sy: 256, dispH: GROUND_Y - 260,    dispY: 260,          speed: 0.10 },
+  // Hills/Forest — 50% speed; low horizon band from y=360
+  { sy: 512, dispH: GROUND_Y - 360,    dispY: 360,          speed: 0.50 },
   // Ground — 100% speed; earth floor strip below GROUND_Y
-  { sy: 665, sh:  87, dispH: H - GROUND_Y + 4,  dispY: GROUND_Y - 2, speed: 1.00, tiles: 4 },
+  { sy: 768, dispH: H - GROUND_Y + 4,  dispY: GROUND_Y - 2, speed: 1.00 },
 ];
 
 export class ParallaxBackground {
   readonly container: PIXI.Container;
 
-  private readonly layerSprites: Array<PIXI.Sprite[]> = [];
-  private readonly tilePx:        number[]             = [];
+  private readonly layerSprites: Array<[PIXI.Sprite, PIXI.Sprite]> = [];
+  private readonly tilePx:       number[]                          = [];
   private scrollX = 0;
   private ready   = false;
 
@@ -50,22 +43,24 @@ export class ParallaxBackground {
 
   /** Call once after the texture has been loaded. */
   init(tex: PIXI.Texture): void {
-    for (const cfg of LAYERS) {
-      const sub    = sliceTexture(tex, 0, cfg.sy, SRC_W, cfg.sh);
-      const scaleH = cfg.dispH / cfg.sh;
-      const tileW  = Math.ceil(SRC_W * scaleH) + 1;  // +1 closes sub-pixel seams
+    const srcW = tex.width;  // full image width, whatever the asset provides
 
-      const sprites: PIXI.Sprite[] = [];
-      for (let t = 0; t < cfg.tiles; t++) {
-        const s = new PIXI.Sprite(sub);
+    for (const cfg of LAYERS) {
+      const sub    = sliceTexture(tex, 0, cfg.sy, srcW, SRC_SH);
+      const scaleH = cfg.dispH / SRC_SH;
+      const tileW  = Math.ceil(srcW * scaleH) + 1;  // aspect-ratio-preserving; +1 closes sub-pixel seams
+
+      const a = new PIXI.Sprite(sub);
+      const b = new PIXI.Sprite(sub);
+      for (const s of [a, b]) {
         s.width  = tileW;
         s.height = cfg.dispH;
         s.y      = cfg.dispY;
-        s.x      = t * tileW;
-        this.container.addChild(s);
-        sprites.push(s);
       }
-      this.layerSprites.push(sprites);
+      a.x = 0;
+      b.x = tileW;
+      this.container.addChild(a, b);
+      this.layerSprites.push([a, b]);
       this.tilePx.push(tileW);
     }
     this.ready = true;
@@ -80,13 +75,12 @@ export class ParallaxBackground {
       const cfg = LAYERS[li];
       if (cfg.speed === 0) continue;   // sky layer is static
 
-      const tileW   = this.tilePx[li];
-      const offset  = (this.scrollX * cfg.speed) % tileW;
-      const sprites = this.layerSprites[li];
+      const tileW  = this.tilePx[li];
+      const offset = (this.scrollX * cfg.speed) % tileW;
+      const [a, b] = this.layerSprites[li];
 
-      for (let t = 0; t < sprites.length; t++) {
-        sprites[t].x = t * tileW - offset;
-      }
+      a.x = -offset;
+      b.x = tileW - offset;
     }
   }
 }

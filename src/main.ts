@@ -49,7 +49,7 @@ async function main(): Promise<void> {
 
   // Load sprite sheets — checker transparency is stripped at runtime
   const [bgTex, heliTex] = await Promise.all([
-    loadTransparentTexture('backgrounds/backgrounds.png').catch(() => null),
+    loadTransparentTexture('backgrounds/backgrounds2.png').catch(() => null),
     loadTransparentTexture('sprites/sprite-sheet1.png').catch(() => null),
   ]);
 
