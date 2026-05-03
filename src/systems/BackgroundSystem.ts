@@ -412,9 +412,9 @@ export class BackgroundSystem {
         this.daySkySprite.visible    = false;
         this.dayGroundSprite.visible = false;
         this.skyGfx.clear();
+        this.starGfx.clear();
         this.mountainGfx.clear();
         this.hillGfx.clear();
-        // Sky comes entirely from the parallax image — no code-drawn clouds or birds
         this.cloudGfx.clear();
         this.bgCityGfx.clear();
         if (showGround) {

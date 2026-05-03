@@ -47,9 +47,9 @@ async function main(): Promise<void> {
   const menu = new MenuScene(leaderboard);
   await menu.init();
 
-  // Load sprite sheets — checker transparency is stripped at runtime
+  // backgrounds2.png is a clean image — load directly; sprite sheet has checker transparency stripped
   const [bgTex, heliTex] = await Promise.all([
-    loadTransparentTexture('backgrounds/backgrounds2.png').catch(() => null),
+    PIXI.Assets.load<PIXI.Texture>('backgrounds/backgrounds2.png').catch(() => null),
     loadTransparentTexture('sprites/sprite-sheet1.png').catch(() => null),
   ]);
 
